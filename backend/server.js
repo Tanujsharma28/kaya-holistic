@@ -8,7 +8,7 @@ import quizRoutes from './routes/quiz.routes.js';
 import bookingRoutes from './routes/booking.routes.js';
 import consultationRoutes from './routes/consultation.routes.js';
 import adminRoutes from './routes/admin.routes.js';
-import paymentRoutes from './routes/payment.routes.js'; // 🟢 Stripe Router Import Kiya
+import paymentRoutes from './routes/payment.routes.js';
 
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 
@@ -27,17 +27,16 @@ const ALLOWED_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:3000',
   'https://kaya-holistic.vercel.app',
-  'https://kaya-holistic-39hwj5wl3-cognistock.vercel.app', // Vercel preview URL
-  process.env.CLIENT_URL, // Render env variable se dynamic URL
+  process.env.CLIENT_URL,
 ].filter(Boolean);
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, curl, Postman)
     if (!origin) return callback(null, true);
     if (
       ALLOWED_ORIGINS.indexOf(origin) !== -1 ||
-      /^http:\/\/localhost:\d+$/.test(origin)
+      /^http:\/\/localhost:\d+$/.test(origin) ||
+      /\.vercel\.app$/.test(origin) // 🟢 Saare Vercel URLs & Preview domains allow honge
     ) {
       return callback(null, true);
     }
@@ -45,6 +44,7 @@ app.use(cors({
   },
   credentials: true,
 }));
+
 app.use(express.json());
 app.use(morgan('dev'));
 
@@ -53,7 +53,7 @@ app.use('/api/quiz', quizRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/consultation', consultationRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/payments', paymentRoutes); // 🟢 Stripe ka route yahan mount kiya
+app.use('/api/payments', paymentRoutes);
 
 app.get('/', (req, res) => res.send('Kaya Holistic Spa API running ✅'));
 
@@ -64,7 +64,7 @@ const PORT = process.env.PORT || 5000;
 
 const server = app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
-  initReminderCron(); // Cron Service Start
+  initReminderCron();
 });
 
 server.on('error', (err) => {
