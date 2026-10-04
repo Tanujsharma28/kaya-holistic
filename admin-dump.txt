@@ -1,0 +1,3969 @@
+﻿=== TREE ===
+\admin-dump.txt
+\backend\,env
+\backend\nodemon.json
+\backend\package.json
+\backend\server.js
+\backend\config\db.js
+\backend\controllers\admin.controller.js
+\backend\controllers\booking.controller.js
+\backend\controllers\consultation.controller.js
+\backend\controllers\services.controller.js
+\backend\data\db.json
+\backend\middleware\auth.middleware.js
+\backend\middleware\errorHandler.js
+\backend\routes\admin.routes.js
+\backend\routes\booking.routes.js
+\backend\routes\consultation.routes.js
+\backend\routes\quiz.routes.js
+\backend\routes\services.routes.js
+\backend\utils\mailer.js
+\frontend\.gitignore
+\frontend\.oxlintrc.json
+\frontend\index.html
+\frontend\package.json
+\frontend\README.md
+\frontend\vite.config.js
+\frontend\public\favicon.svg
+\frontend\public\hero-bg.jpg
+\frontend\public\icons.svg
+\frontend\public\gallery\1.jpg
+\frontend\public\gallery\2.jpg
+\frontend\public\gallery\3.jpg
+\frontend\public\gallery\4.jpg
+\frontend\public\gallery\5.jpg
+\frontend\src\App.css
+\frontend\src\App.jsx
+\frontend\src\index.css
+\frontend\src\main.jsx
+\frontend\src\api\adminClient.js
+\frontend\src\api\client.js
+\frontend\src\components\Footer.jsx
+\frontend\src\components\Gallery.jsx
+\frontend\src\components\Navbar.jsx
+\frontend\src\components\ProtectedRoute.jsx
+\frontend\src\components\Reveal.jsx
+\frontend\src\components\ServiceCard.jsx
+\frontend\src\components\Testimonials.jsx
+\frontend\src\context\AdminAuthContext.jsx
+\frontend\src\context\AppContext.jsx
+\frontend\src\pages\Booking.jsx
+\frontend\src\pages\Confirmation.jsx
+\frontend\src\pages\Consultation.jsx
+\frontend\src\pages\Home.jsx
+\frontend\src\pages\Quiz.jsx
+\frontend\src\pages\Result.jsx
+\frontend\src\pages\admin\AdminDashboard.jsx
+\frontend\src\pages\admin\AdminLogin.jsx
+
+
+=== FILE: \backend\config\db.js ===
+import { JSONFilePreset } from 'lowdb/node';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const file = path.join(__dirname, '..', 'data', 'db.json');
+
+const defaultData = { services: [], bookings: [], consultations: [] };
+
+export const db = await JSONFilePreset(file, defaultData);
+
+
+=== FILE: \backend\controllers\admin.controller.js ===
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import { db } from '../config/db.js';
+
+export const login = async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ success: false, message: 'Email and password required' });
+  }
+
+  if (email !== process.env.ADMIN_EMAIL) {
+    return res.status(401).json({ success: false, message: 'Invalid credentials' });
+  }
+
+  const match = await bcrypt.compare(password, process.env.ADMIN_PASSWORD_HASH);
+  if (!match) {
+    return res.status(401).json({ success: false, message: 'Invalid credentials' });
+  }
+
+  const token = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '7d' });
+  res.json({ success: true, data: { token, email } });
+};
+
+export const getAllBookingsAdmin = (req, res) => {
+  const bookings = [...db.data.bookings].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  res.json({ success: true, data: bookings });
+};
+
+export const getAllConsultationsAdmin = (req, res) => {
+  const consultations = [...db.data.consultations].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  res.json({ success: true, data: consultations });
+};
+
+export const updateBookingStatus = async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  const booking = db.data.bookings.find(b => b.id === id);
+  if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
+
+  booking.status = status;
+  await db.write();
+  res.json({ success: true, data: booking });
+};
+
+export const deleteBooking = async (req, res) => {
+  const { id } = req.params;
+  const idx = db.data.bookings.findIndex(b => b.id === id);
+  if (idx === -1) return res.status(404).json({ success: false, message: 'Booking not found' });
+
+  db.data.bookings.splice(idx, 1);
+  await db.write();
+  res.json({ success: true, message: 'Booking deleted' });
+};
+
+export const getDashboardStats = (req, res) => {
+  const { bookings, consultations } = db.data;
+  const today = new Date().toISOString().split('T')[0];
+  const revenue = bookings
+    .filter(b => b.status !== 'cancelled')
+    .reduce((sum, b) => sum + (b.price || 0), 0);
+
+  res.json({
+    success: true,
+    data: {
+      totalBookings: bookings.length,
+      todayBookings: bookings.filter(b => b.date === today).length,
+      totalConsultations: consultations.length,
+      totalRevenue: revenue,
+      pendingBookings: bookings.filter(b => b.status === 'confirmed').length,
+    }
+  });
+};
+
+
+=== FILE: \backend\controllers\booking.controller.js ===
+import { v4 as uuid } from 'uuid';
+import { db } from '../config/db.js';
+import { sendMail, notifyOwner } from '../utils/mailer.js';
+
+// â”€â”€â”€ Slot Generator: 10AMâ€“6PM, 45 min gaps, Monâ€“Sat â”€â”€
+export const getAvailability = (req, res) => {
+  const { date } = req.query;
+  if (!date) return res.status(400).json({ success: false, message: 'date query required' });
+
+  const day = new Date(date).getDay();
+  if (day === 0) return res.json({ success: true, data: [] }); // closed Sundays
+
+  const slots = [];
+  let hour = 10, min = 0;
+  while (hour < 18) {
+    // âœ… FIXED: Corrected syntax error in time label generation
+    const label = `${hour > 12 ? hour - 12 : hour}:${min === 0 ? '00' : min} ${hour >= 12 ? 'PM' : 'AM'}`;
+    const taken = db.data.bookings.some(b => b.date === date && b.slot === label);
+    slots.push({ time: label, available: !taken });
+    min += 45;
+    if (min >= 60) { min -= 60; hour++; }
+  }
+  res.json({ success: true, data: slots });
+};
+
+// â”€â”€â”€ Create Booking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+export const createBooking = async (req, res) => {
+  const { serviceId, date, slot, name, email, phone, note, addOns = [], mode = 'in-person', videoLink = '' } = req.body;
+
+  if (!serviceId || !date || !slot || !name || !email) {
+    return res.status(400).json({ success: false, message: 'Missing required fields' });
+  }
+
+  const service = db.data.services.find(s => s.id === serviceId);
+  if (!service) return res.status(404).json({ success: false, message: 'Invalid service' });
+
+  const alreadyTaken = db.data.bookings.some(b => b.date === date && b.slot === slot);
+  if (alreadyTaken) return res.status(409).json({ success: false, message: 'Slot already booked' });
+
+  // Format date nicely: "2026-10-15" â†’ "Wednesday, October 15, 2026"
+  const formattedDate = new Date(date + 'T12:00:00').toLocaleDateString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+  });
+
+  const isOnline = mode === 'online' || mode === 'virtual';
+  const meetLink = videoLink || process.env.GOOGLE_MEET_LINK || 'https://meet.google.com/kaya-holistic-spa';
+
+  const booking = {
+    id: uuid(),
+    serviceId, serviceName: service.name, price: service.price,
+    date, slot, name, email, phone: phone || '', note: note || '', addOns,
+    mode: isOnline ? 'online' : 'in-person',
+    videoLink: isOnline ? meetLink : '',
+    status: 'confirmed', createdAt: new Date().toISOString()
+  };
+
+  db.data.bookings.push(booking);
+  await db.write();
+
+  // â”€â”€ Luxury Client Confirmation Email â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const clientMailPromise = sendMail({
+    to: email,
+    subject: `Your Appointment is Confirmed â€” Kaya Holistic Spa`,
+    html: `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background-color:#f5f1eb;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f1eb;padding:40px 20px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+
+        <!-- Header / Brand -->
+        <tr>
+          <td align="center" style="background:#2b3a30;border-radius:16px 16px 0 0;padding:36px 40px 28px;">
+            <p style="margin:0 0 4px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#b8a98a;">Kaya Holistic Spa Â· Evanston, Illinois</p>
+            <h1 style="margin:0;font-size:26px;font-weight:300;color:#ffffff;letter-spacing:1px;">Appointment Confirmed</h1>
+            <div style="width:40px;height:2px;background:#b8a98a;margin:16px auto 0;"></div>
+          </td>
+        </tr>
+
+        <!-- Greeting -->
+        <tr>
+          <td style="background:#ffffff;padding:36px 40px 24px;">
+            <p style="margin:0 0 10px;font-size:16px;color:#3a3028;line-height:1.6;">
+              Dear <strong>${name}</strong>,
+            </p>
+            <p style="margin:0;font-size:15px;color:#5c5248;line-height:1.7;">
+              We look forward to welcoming you to Kaya. Your appointment has been confirmed and is awaiting you. Please review your booking details below.
+            </p>
+          </td>
+        </tr>
+
+        <!-- Booking Details Card -->
+        <tr>
+          <td style="background:#ffffff;padding:0 40px 32px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#faf7f2;border:1px solid #e8e0d4;border-radius:12px;overflow:hidden;">
+              <tr>
+                <td style="background:#a07850;padding:14px 24px;">
+                  <p style="margin:0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#fff;font-weight:600;">Booking Details</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:24px;">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+
+                    <tr>
+                      <td style="padding:10px 0;border-bottom:1px solid #ede7dc;width:40%;">
+                        <p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#9b8c7d;font-weight:600;">Treatment</p>
+                      </td>
+                      <td style="padding:10px 0;border-bottom:1px solid #ede7dc;">
+                        <p style="margin:0;font-size:15px;color:#2b3a30;font-weight:600;">${service.name}</p>
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <td style="padding:10px 0;border-bottom:1px solid #ede7dc;">
+                        <p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#9b8c7d;font-weight:600;">Date</p>
+                      </td>
+                      <td style="padding:10px 0;border-bottom:1px solid #ede7dc;">
+                        <p style="margin:0;font-size:15px;color:#3a3028;">${formattedDate}</p>
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <td style="padding:10px 0;border-bottom:1px solid #ede7dc;">
+                        <p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#9b8c7d;font-weight:600;">Time</p>
+                      </td>
+                      <td style="padding:10px 0;border-bottom:1px solid #ede7dc;">
+                        <p style="margin:0;font-size:15px;color:#3a3028;">${slot}</p>
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <td style="padding:10px 0;border-bottom:1px solid #ede7dc;">
+                        <p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#9b8c7d;font-weight:600;">Duration</p>
+                      </td>
+                      <td style="padding:10px 0;border-bottom:1px solid #ede7dc;">
+                        <p style="margin:0;font-size:15px;color:#3a3028;">${service.duration} minutes</p>
+                      </td>
+                    </tr>
+                    
+                    <tr>
+                      <td style="padding:10px 0;border-bottom:1px solid #ede7dc;">
+                        <p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#9b8c7d;font-weight:600;">Mode</p>
+                      </td>
+                      <td style="padding:10px 0;border-bottom:1px solid #ede7dc;">
+                        <p style="margin:0;font-size:15px;color:#3a3028;">${isOnline ? 'ðŸ’» Online Video Consultation (Google Meet)' : 'ðŸ“ In-Person at Clinic'}</p>
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <td style="padding:12px 0 0;">
+                        <p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#9b8c7d;font-weight:600;">Total</p>
+                      </td>
+                      <td style="padding:12px 0 0;">
+                        <p style="margin:0;font-size:20px;color:#2b3a30;font-weight:700;">$${service.price}</p>
+                      </td>
+                    </tr>
+
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Preparation & Meeting Details -->
+        <tr>
+          <td style="background:#ffffff;padding:0 40px 32px;">
+            ${isOnline ? `
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#f2f7f4;border:1.5px solid #2b3a30;border-radius:12px;padding:24px;">
+              <tr>
+                <td>
+                  <p style="margin:0 0 8px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#2b3a30;font-weight:700;">ðŸŽ¥ Online Google Meet Consultation</p>
+                  <p style="margin:0 0 16px;font-size:14px;color:#3a3028;line-height:1.6;">Your session is scheduled online via Google Meet. Click below to join the video call at your appointment time:</p>
+                  <div style="text-align:center;margin:16px 0;">
+                    <a href="${meetLink}" target="_blank" style="display:inline-block;background:#2b3a30;color:#ffffff;padding:14px 28px;border-radius:30px;text-decoration:none;font-weight:bold;font-size:14px;letter-spacing:0.5px;">
+                      ðŸ‘‰ Click Here to Join Google Meet
+                    </a>
+                  </div>
+                  <p style="margin:12px 0 0;font-size:12.5px;color:#5c5248;text-align:center;">
+                    Link: <a href="${meetLink}" style="color:#2b3a30;font-weight:bold;">${meetLink}</a>
+                  </p>
+                  <p style="margin:12px 0 0;font-size:12px;color:#7a6e65;text-align:center;">
+                    * Please join 5 minutes before your scheduled start time.
+                  </p>
+                </td>
+              </tr>
+            </table>
+            ` : `
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0ece5;border-radius:10px;padding:20px 24px;">
+              <tr>
+                <td>
+                  <p style="margin:0 0 10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#a07850;font-weight:700;">ðŸ“ In-Person Appointment Preparation</p>
+                  <p style="margin:4px 0;font-size:13.5px;color:#4a4038;line-height:1.7;">&#x2022;&nbsp; Arrive 5 minutes early so you can settle in comfortably.</p>
+                  <p style="margin:4px 0;font-size:13.5px;color:#4a4038;line-height:1.7;">&#x2022;&nbsp; Come with a clean face â€” no heavy makeup if possible.</p>
+                  <p style="margin:4px 0;font-size:13.5px;color:#4a4038;line-height:1.7;">&#x2022;&nbsp; Clinic Address: 1567 Sherman Avenue, Evanston, IL 60201.</p>
+                </td>
+              </tr>
+            </table>
+            `}
+          </td>
+        </tr>
+
+        <!-- Location & Contact -->
+        <tr>
+          <td style="background:#ffffff;padding:0 40px 36px;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td width="50%" style="vertical-align:top;padding-right:16px;">
+                  <p style="margin:0 0 6px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9b8c7d;font-weight:600;">Location</p>
+                  <p style="margin:0;font-size:13.5px;color:#3a3028;line-height:1.7;">1567 Sherman Avenue<br>Evanston, IL 60201</p>
+                </td>
+                <td width="50%" style="vertical-align:top;">
+                  <p style="margin:0 0 6px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9b8c7d;font-weight:600;">Contact</p>
+                  <p style="margin:0;font-size:13.5px;color:#3a3028;line-height:1.7;">847-571-1910<br>kayaholisticspa@gmail.com</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- CTA Button -->
+        <tr>
+          <td style="background:#ffffff;padding:0 40px 40px;text-align:center;">
+            <a href="https://www.google.com/maps/search/1567+Sherman+Avenue+Evanston+IL"
+               style="display:inline-block;background:#2b3a30;color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;text-decoration:none;padding:14px 32px;border-radius:30px;">
+              Get Directions
+            </a>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td align="center" style="background:#2b3a30;border-radius:0 0 16px 16px;padding:24px 40px;">
+            <p style="margin:0 0 4px;font-size:12px;color:#b8a98a;letter-spacing:0.5px;">
+              Need to reschedule? Call us at <strong style="color:#d4c4a8;">847-571-1910</strong>
+            </p>
+            <p style="margin:0;font-size:11px;color:#7a8f7e;">
+              Booking Ref: ${booking.id.slice(0, 8).toUpperCase()} &nbsp;Â·&nbsp; By Appointment Only
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+
+</body>
+</html>`
+  });
+
+  // â”€â”€ Owner Alert Email â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const ownerMailPromise = notifyOwner({
+    subject: `ðŸ“… New Booking â€” ${name} Â· ${service.name} Â· ${formattedDate} at ${slot}`,
+    html: `
+<!DOCTYPE html>
+<html lang="en">
+<body style="margin:0;padding:0;background:#f5f1eb;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 20px;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#fff;border-radius:14px;overflow:hidden;border:1px solid #e0d8ce;">
+
+        <tr>
+          <td style="background:#2b3a30;padding:20px 28px;">
+            <p style="margin:0;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#b8a98a;">Kaya Holistic Spa â€” Admin Alert</p>
+            <h2 style="margin:6px 0 0;font-size:20px;font-weight:400;color:#fff;">New Appointment Booked</h2>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:28px;">
+            <table width="100%" cellpadding="0" cellspacing="8">
+
+              <tr style="background:#faf7f2;">
+                <td style="padding:10px 14px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9b8c7d;width:35%;">Client</td>
+                <td style="padding:10px 14px;font-size:14px;color:#2b3028;font-weight:600;">${name}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px 14px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9b8c7d;">Email</td>
+                <td style="padding:10px 14px;font-size:14px;color:#3a3028;"><a href="mailto:${email}" style="color:#a07850;">${email}</a></td>
+              </tr>
+              <tr style="background:#faf7f2;">
+                <td style="padding:10px 14px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9b8c7d;">Phone</td>
+                <td style="padding:10px 14px;font-size:14px;color:#3a3028;">${phone || 'Not provided'}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px 14px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9b8c7d;">Treatment</td>
+                <td style="padding:10px 14px;font-size:14px;color:#3a3028;font-weight:600;">${service.name}</td>
+              </tr>
+              <tr style="background:#faf7f2;">
+                <td style="padding:10px 14px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9b8c7d;">Date &amp; Time</td>
+                <td style="padding:10px 14px;font-size:14px;color:#3a3028;">${formattedDate} &nbsp;at&nbsp; <strong>${slot}</strong></td>
+              </tr>
+              <tr>
+                <td style="padding:10px 14px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9b8c7d;">Duration</td>
+                <td style="padding:10px 14px;font-size:14px;color:#3a3028;">${service.duration} min</td>
+              </tr>
+              <tr style="background:#faf7f2;">
+                <td style="padding:10px 14px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9b8c7d;">Mode</td>
+                <td style="padding:10px 14px;font-size:14px;color:#3a3028;font-weight:600;">${isOnline ? `Online (Google Meet: <a href="${meetLink}">${meetLink}</a>)` : 'In-Person at Clinic'}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px 14px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9b8c7d;">Revenue</td>
+                <td style="padding:10px 14px;font-size:16px;color:#2b3a30;font-weight:700;">$${service.price}</td>
+              </tr>
+              ${note ? `
+              <tr>
+                <td style="padding:10px 14px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9b8c7d;">Client Note</td>
+                <td style="padding:10px 14px;font-size:13px;color:#5c5248;font-style:italic;">"${note}"</td>
+              </tr>` : ''}
+
+            </table>
+
+            <p style="margin:20px 0 0;font-size:11px;color:#aaa;border-top:1px solid #ede7dc;padding-top:14px;">
+              Booking ID: <code>${booking.id}</code> &nbsp;Â·&nbsp; Received: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })} CT
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+  });
+
+  // Await both emails so nodemon or server response doesn't drop client email
+  await Promise.allSettled([clientMailPromise, ownerMailPromise]);
+
+  res.status(201).json({ success: true, data: booking });
+};
+
+export const getBookings = (req, res) => {
+  res.json({ success: true, data: db.data.bookings });
+};
+
+
+=== FILE: \backend\controllers\consultation.controller.js ===
+import { v4 as uuid } from 'uuid';
+import { db } from '../config/db.js';
+import { sendMail } from '../utils/mailer.js';
+
+export const submitConsultation = async (req, res) => {
+  const { name, email, answers } = req.body;
+  if (!name || !email || !answers) {
+    return res.status(400).json({ success: false, message: 'Missing required fields' });
+  }
+
+  const record = { id: uuid(), name, email, answers, createdAt: new Date().toISOString() };
+  db.data.consultations.push(record);
+  await db.write();
+
+  sendMail({
+    to: process.env.GMAIL_USER,
+    subject: `New Consultation Intake â€” ${name}`,
+    html: `<h3>New skin intake from ${name} (${email})</h3>
+           <pre>${JSON.stringify(answers, null, 2)}</pre>`
+  });
+
+  sendMail({
+    to: email,
+    subject: `Kaya Holistic Spa â€” Your intake is received`,
+    html: `<p>Hi ${name}, thanks! Puja will review your answers before your $45 virtual consultation.</p>
+           <p>Please email 3 clear face photos (front, left, right â€” no makeup) and your current product photos to kayaholisticspa@gmail.com with your name and appointment date in the subject line.</p>`
+  });
+
+  res.status(201).json({ success: true, data: record });
+};
+
+
+=== FILE: \backend\controllers\services.controller.js ===
+import { db } from '../config/db.js';
+
+export const getAllServices = (req, res) => {
+  res.json({ success: true, data: db.data.services });
+};
+
+export const getServiceById = (req, res) => {
+  const service = db.data.services.find(s => s.id === req.params.id);
+  if (!service) return res.status(404).json({ success: false, message: 'Service not found' });
+  res.json({ success: true, data: service });
+};
+
+
+
+=== FILE: \backend\data\db.json ===
+{
+  "services": [
+    {
+      "id": "express",
+      "name": "Express Facial",
+      "price": 75,
+      "duration": 30,
+      "desc": "A quick refresh - cleanse, exfoliate and hydrate."
+    },
+    {
+      "id": "deep",
+      "name": "Deep Pore Cleansing",
+      "price": 75,
+      "duration": 45,
+      "desc": "Routine deep-pore cleansing, steam and extractions."
+    },
+    {
+      "id": "ultimate",
+      "name": "Ultimate Facial",
+      "price": 160,
+      "duration": 60,
+      "desc": "Deeply relaxing facial using fresh, breathable products."
+    },
+    {
+      "id": "anti",
+      "name": "Anti-Aging Facial (75 min)",
+      "price": 145,
+      "duration": 75,
+      "desc": "Customised for dehydration, fine lines and blemishes with manual dermabrasion."
+    },
+    {
+      "id": "hydra",
+      "name": "Hydra Facial",
+      "price": 200,
+      "duration": 60,
+      "desc": "Advanced hydra-dermabrasion for deep, visible hydration."
+    },
+    {
+      "id": "diamond",
+      "name": "Diamond Microdermabrasion",
+      "price": 125,
+      "duration": 60,
+      "desc": "Diamond-tip resurfacing for sun damage, fine lines and dullness."
+    },
+    {
+      "id": "nano",
+      "name": "Nano Needling Facial",
+      "price": 200,
+      "duration": 75,
+      "desc": "Boosts collagen with double-mask deep hydration infusion."
+    },
+    {
+      "id": "gent",
+      "name": "Gentleman's Facial",
+      "price": 85,
+      "duration": 45,
+      "desc": "Deep pore cleanse and exfoliation customised for men."
+    },
+    {
+      "id": "ihm",
+      "name": "Indian Head Massage (60 min)",
+      "price": 95,
+      "duration": 60,
+      "desc": "Ayurvedic technique used for thousands of years to ease tension."
+    },
+    {
+      "id": "wax",
+      "name": "Full Face Waxing",
+      "price": 50,
+      "duration": 30,
+      "desc": "Brow, lip, chin - smooth, precise waxing."
+    },
+    {
+      "id": "virt",
+      "name": "Virtual Skin Consultation",
+      "price": 45,
+      "duration": 30,
+      "desc": "One-to-one video skin assessment with Puja, from anywhere."
+    }
+  ],
+  "bookings": [
+    {
+      "id": "2b6cf73c-091b-48a3-81a4-4fafd364bdc2",
+      "serviceId": "deep",
+      "serviceName": "Deep Pore Cleansing",
+      "price": 75,
+      "date": "2026-10-21",
+      "slot": "11:15 AM",
+      "name": "monika",
+      "email": "singhayu@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "status": "confirmed",
+      "createdAt": "2026-10-03T07:07:32.787Z"
+    },
+    {
+      "id": "eab079ff-cdef-45a8-97a5-19047b975f97",
+      "serviceId": "anti",
+      "serviceName": "Anti-Aging Facial (75 min)",
+      "price": 145,
+      "date": "2026-10-05",
+      "slot": "12:30 PM",
+      "name": "monika",
+      "email": "u73219336@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "status": "confirmed",
+      "createdAt": "2026-10-03T07:08:31.149Z"
+    },
+    {
+      "id": "f4440843-040f-4f19-9741-eb3d1413d8ea",
+      "serviceId": "virt",
+      "serviceName": "Virtual Skin Consultation",
+      "price": 45,
+      "date": "2026-10-05",
+      "slot": "02:00 PM",
+      "name": "monika",
+      "email": "u73219336@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "status": "confirmed",
+      "createdAt": "2026-10-03T07:14:00.192Z"
+    },
+    {
+      "id": "fc7c5546-c83f-44d7-9f1a-6ac72a5138c9",
+      "serviceId": "virt",
+      "serviceName": "Virtual Skin Consultation",
+      "price": 45,
+      "date": "2026-10-05",
+      "slot": "04:30 PM",
+      "name": "monika",
+      "email": "u73219336@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "status": "confirmed",
+      "createdAt": "2026-10-03T07:19:26.044Z"
+    },
+    {
+      "id": "e275043d-7453-4b7e-be6f-93a41656a36b",
+      "serviceId": "ultimate",
+      "serviceName": "Ultimate Facial",
+      "price": 160,
+      "date": "2026-10-06",
+      "slot": "12:30 PM",
+      "name": "monika",
+      "email": "u73219336@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "status": "confirmed",
+      "createdAt": "2026-10-03T07:21:20.148Z"
+    },
+    {
+      "id": "eccf6bf1-0517-4bab-847d-fadea56d8b03",
+      "serviceId": "deep",
+      "serviceName": "Deep Pore Cleansing",
+      "price": 75,
+      "date": "2026-10-06",
+      "slot": "11:15 AM",
+      "name": "monika",
+      "email": "u73219336@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "status": "confirmed",
+      "createdAt": "2026-10-03T07:25:21.808Z"
+    },
+    {
+      "id": "2d3758b5-c2fa-4ffb-89b8-40b5e6d2b0d0",
+      "serviceId": "deep",
+      "serviceName": "Deep Pore Cleansing",
+      "price": 75,
+      "date": "2026-10-06",
+      "slot": "03:15 PM",
+      "name": "monika",
+      "email": "u73219336@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "status": "confirmed",
+      "createdAt": "2026-10-03T07:25:42.415Z"
+    },
+    {
+      "id": "20735fb6-d6db-4e63-bfda-94f70d62aea5",
+      "serviceId": "deep",
+      "serviceName": "Deep Pore Cleansing",
+      "price": 75,
+      "date": "2026-10-07",
+      "slot": "05:15 PM",
+      "name": "monika",
+      "email": "u73219336@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "status": "confirmed",
+      "createdAt": "2026-10-03T07:25:53.389Z"
+    },
+    {
+      "id": "f814098f-1316-41f5-bf08-ecbe90e948e3",
+      "serviceId": "virt",
+      "serviceName": "Virtual Skin Consultation",
+      "price": 45,
+      "date": "2026-10-09",
+      "slot": "12:30 PM",
+      "name": "monika",
+      "email": "u73219336@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "status": "confirmed",
+      "createdAt": "2026-10-03T07:35:26.614Z"
+    },
+    {
+      "id": "cc270f02-afe6-4ac5-a760-3e713faf26e5",
+      "serviceId": "express",
+      "serviceName": "Express Facial",
+      "price": 75,
+      "date": "2026-10-06",
+      "slot": "02:00 PM",
+      "name": "monika",
+      "email": "u73219336@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "status": "confirmed",
+      "createdAt": "2026-10-03T07:38:12.400Z"
+    },
+    {
+      "id": "0488a902-c882-4325-9edc-1b1c0f6f9ebb",
+      "serviceId": "express",
+      "serviceName": "Express Facial",
+      "price": 75,
+      "date": "2026-11-20",
+      "slot": "02:30 PM",
+      "name": "Test Client",
+      "email": "ps916314@gmail.com",
+      "phone": "8475551234",
+      "note": "Email delivery test",
+      "addOns": [],
+      "status": "confirmed",
+      "createdAt": "2026-10-03T07:43:48.276Z"
+    },
+    {
+      "id": "e16e79d9-8651-408c-a3ef-6a51d15e48f5",
+      "serviceId": "virt",
+      "serviceName": "Virtual Skin Consultation",
+      "price": 45,
+      "date": "2026-10-06",
+      "slot": "05:15 PM",
+      "name": "monika",
+      "email": "u73219336@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "mode": "in-person",
+      "videoLink": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:06:50.680Z"
+    },
+    {
+      "id": "9d188275-4c39-4aef-83b7-7a654a184ae4",
+      "serviceId": "anti",
+      "serviceName": "Anti-Aging Facial (75 min)",
+      "price": 145,
+      "date": "2026-10-14",
+      "slot": "05:15 PM",
+      "name": "monika",
+      "email": "u72598514@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "mode": "in-person",
+      "videoLink": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:08:11.346Z"
+    },
+    {
+      "id": "c283336a-7e4d-4983-a732-fbca2059a439",
+      "serviceId": "diamond",
+      "serviceName": "Diamond Microdermabrasion",
+      "price": 125,
+      "date": "2026-10-30",
+      "slot": "05:15 PM",
+      "name": "monika",
+      "email": "u72598514@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "mode": "in-person",
+      "videoLink": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:10:38.605Z"
+    },
+    {
+      "id": "a53c0541-a9fa-4d12-b052-f13a024a0b9e",
+      "serviceId": "diamond",
+      "serviceName": "Diamond Microdermabrasion",
+      "price": 125,
+      "date": "2026-10-30",
+      "slot": "04:30 PM",
+      "name": "monika",
+      "email": "u72598514@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "mode": "in-person",
+      "videoLink": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:12:22.307Z"
+    },
+    {
+      "id": "392b1a7d-31dc-4a8c-a743-f417d341324c",
+      "serviceId": "diamond",
+      "serviceName": "Diamond Microdermabrasion",
+      "price": 125,
+      "date": "2026-10-30",
+      "slot": "02:00 PM",
+      "name": "monika",
+      "email": "u72598514@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "mode": "in-person",
+      "videoLink": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:12:26.716Z"
+    },
+    {
+      "id": "0608573b-7828-4523-bcd7-f3e094563b87",
+      "serviceId": "anti",
+      "serviceName": "Anti-Aging Facial (75 min)",
+      "price": 145,
+      "date": "2026-10-10",
+      "slot": "02:00 PM",
+      "name": "monika",
+      "email": "u72598514@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "mode": "in-person",
+      "videoLink": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:12:54.268Z"
+    },
+    {
+      "id": "80ba6c4c-012d-4a93-b1f7-e2017f582d5e",
+      "serviceId": "deep",
+      "serviceName": "Deep Pore Cleansing",
+      "price": 75,
+      "date": "2026-10-13",
+      "slot": "05:15 PM",
+      "name": "monika",
+      "email": "u72598514@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "mode": "in-person",
+      "videoLink": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:14:48.112Z"
+    },
+    {
+      "id": "da652659-91a2-41aa-87ef-a61e6076f010",
+      "serviceId": "hydra",
+      "serviceName": "Hydra Facial",
+      "price": 200,
+      "date": "2026-10-08",
+      "slot": "05:15 PM",
+      "name": "monika",
+      "email": "u72598514@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "mode": "in-person",
+      "videoLink": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:17:48.964Z"
+    },
+    {
+      "id": "8d17908f-e2cd-4662-9a0a-0295ea923372",
+      "serviceId": "express",
+      "serviceName": "Express Facial",
+      "price": 75,
+      "date": "2026-12-15",
+      "slot": "11:30 AM",
+      "name": "Test Client Bhai",
+      "email": "ps916314@gmail.com",
+      "phone": "9876543210",
+      "note": "Testing client confirmation email",
+      "addOns": [],
+      "mode": "in-person",
+      "videoLink": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:21:46.206Z"
+    },
+    {
+      "id": "98022a9e-7da7-4322-a686-aff9d99a7a8e",
+      "serviceId": "deep",
+      "serviceName": "Deep Pore Cleansing",
+      "price": 75,
+      "date": "2026-10-29",
+      "slot": "12:30 PM",
+      "name": "monika",
+      "email": "u72598514@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "mode": "in-person",
+      "videoLink": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:22:53.189Z"
+    },
+    {
+      "id": "49ff8ded-86ad-4ecd-a33d-5035cb8712d5",
+      "serviceId": "anti",
+      "serviceName": "Anti-Aging Facial (75 min)",
+      "price": 145,
+      "date": "2026-12-20",
+      "slot": "10:00 AM",
+      "name": "Client Test User",
+      "email": "ps916314@gmail.com",
+      "phone": "9999999999",
+      "note": "Testing if CLIENT gets email",
+      "addOns": [],
+      "mode": "in-person",
+      "videoLink": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:26:46.589Z"
+    },
+    {
+      "id": "758792e0-4b4e-4d1d-99cb-703b022a603f",
+      "serviceId": "ultimate",
+      "serviceName": "Ultimate Facial",
+      "price": 160,
+      "date": "2026-10-24",
+      "slot": "12:30 PM",
+      "name": "monika",
+      "email": "u72598514@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "mode": "in-person",
+      "videoLink": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:30:16.841Z"
+    },
+    {
+      "id": "84dece47-8b16-43d9-83ef-87b1d49284cb",
+      "serviceId": "diamond",
+      "serviceName": "Diamond Microdermabrasion",
+      "price": 125,
+      "date": "2026-10-24",
+      "slot": "05:15 PM",
+      "name": "monika",
+      "email": "u72598514@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "mode": "in-person",
+      "videoLink": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:31:11.072Z"
+    },
+    {
+      "id": "02ddbe38-cece-4669-af7f-5ff6d51af56d",
+      "serviceId": "virt",
+      "serviceName": "Virtual Skin Consultation",
+      "price": 45,
+      "date": "2026-10-16",
+      "slot": "05:15 PM",
+      "name": "monika",
+      "email": "u72598514@gmail.com",
+      "phone": "87847653",
+      "note": "",
+      "addOns": [],
+      "mode": "in-person",
+      "videoLink": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:34:44.692Z"
+    },
+    {
+      "id": "82a7cbd4-a6f0-4849-b80c-e9d160262adc",
+      "serviceId": "anti",
+      "serviceName": "Anti-Aging Facial (75 min)",
+      "price": 145,
+      "date": "2026-12-25",
+      "slot": "02:00 PM",
+      "name": "Verification Client",
+      "email": "u72598514@gmail.com",
+      "phone": "9876543210",
+      "note": "End-to-end verification booking test",
+      "addOns": [],
+      "mode": "in-person",
+      "videoLink": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:37:46.649Z"
+    },
+    {
+      "id": "b0bddb01-32bd-4784-82bf-84ee42358dad",
+      "serviceId": "virt",
+      "serviceName": "Virtual Skin Consultation",
+      "price": 45,
+      "date": "2026-10-08",
+      "slot": "04:30 PM",
+      "name": "Tanuj Sharma",
+      "email": "ps916314@gmail.com",
+      "phone": "7906561958",
+      "note": "",
+      "addOns": [],
+      "mode": "in-person",
+      "videoLink": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:38:58.519Z"
+    },
+    {
+      "id": "126c4440-f526-49d7-8ec3-26a1dabccf7f",
+      "serviceId": "deep",
+      "serviceName": "Deep Pore Cleansing",
+      "price": 75,
+      "date": "2026-10-23",
+      "slot": "10:00 AM",
+      "name": "Tanuj Sharma",
+      "email": "ts2970502@gmail.com",
+      "phone": "8279348588",
+      "note": "",
+      "addOns": [],
+      "mode": "in-person",
+      "videoLink": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:40:41.270Z"
+    },
+    {
+      "id": "65217de3-2fb0-4017-bd75-0482f887898d",
+      "serviceId": "anti",
+      "serviceName": "Anti-Aging Facial (75 min)",
+      "price": 145,
+      "date": "2026-12-30",
+      "slot": "11:15 AM",
+      "name": "Rahul Kumar (New Client)",
+      "email": "rahul.kumar.test99@gmail.com",
+      "phone": "9988776655",
+      "note": "Dynamic email test for new client",
+      "addOns": [],
+      "mode": "in-person",
+      "videoLink": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:44:59.690Z"
+    },
+    {
+      "id": "b00ee7b0-5c58-4739-905a-c6eadd3f492f",
+      "serviceId": "deep",
+      "serviceName": "Deep Pore Cleansing",
+      "price": 75,
+      "date": "2026-10-20",
+      "slot": "03:15 PM",
+      "name": "Dynamic Client Test",
+      "email": "u73219336@gmail.com",
+      "phone": "9876543210",
+      "note": "Testing client confirmation email for u73219336@gmail.com",
+      "addOns": [],
+      "mode": "in-person",
+      "videoLink": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:47:01.448Z"
+    },
+    {
+      "id": "df5cd2a7-a172-433f-97c6-7a291c62a1be",
+      "serviceId": "virt",
+      "serviceName": "Virtual Skin Consultation",
+      "price": 45,
+      "date": "2026-11-05",
+      "slot": "02:00 PM",
+      "name": "Online Meet Test Client",
+      "email": "u73219336@gmail.com",
+      "phone": "9988776655",
+      "note": "Testing Google Meet online link email delivery",
+      "addOns": [],
+      "mode": "online",
+      "videoLink": "https://meet.google.com/kaya-holistic-spa",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:56:45.686Z"
+    },
+    {
+      "id": "44a204e3-b3ae-4f73-9e60-e563d7b720ff",
+      "serviceId": "virt",
+      "serviceName": "Virtual Skin Consultation",
+      "price": 45,
+      "date": "2026-10-09",
+      "slot": "11:15 AM",
+      "name": "Tanuj Sharma",
+      "email": "ts2970502@gmail.com",
+      "phone": "8279348588",
+      "note": "",
+      "addOns": [],
+      "mode": "online",
+      "videoLink": "https://meet.google.com/kaya-holistic-spa",
+      "status": "confirmed",
+      "createdAt": "2026-10-03T09:57:46.649Z"
+    }
+  ],
+  "consultations": [
+    {
+      "id": "7fa2a6e0-21d6-4880-beba-3eab404e5640",
+      "name": "Tanuj",
+      "email": "ps916314@gmail.com",
+      "answers": {
+        "Hi! I'm Puja. What's the main concern you'd like to address?": "Redness / sensitivity",
+        "How long have you been dealing with this?": "A few months",
+        "Have you tried any treatments or products for it before?": "Yes, but nothing worked well",
+        "Any skin sensitivities or allergies I should know about?": "Fragrance sensitive",
+        "Name and email so I can send your summary?": "Tanuj / ps916314@gmail.com"
+      },
+      "createdAt": "2026-10-03T09:49:43.367Z"
+    },
+    {
+      "id": "e0c47468-d77d-4066-8193-f7e493a7d5f8",
+      "name": "sdf",
+      "email": "f",
+      "answers": {
+        "Hi! I'm Puja. What's the main concern you'd like to address?": "Just need a reset!",
+        "How long have you been dealing with this?": "Over a year",
+        "Have you tried any treatments or products for it before?": "Yes, but nothing worked well",
+        "Any skin sensitivities or allergies I should know about?": "Fragrance sensitive",
+        "Name and email so I can send your summary?": "sdf / f"
+      },
+      "createdAt": "2026-10-03T09:55:59.144Z"
+    }
+  ]
+}
+
+
+=== FILE: \backend\middleware\auth.middleware.js ===
+import jwt from 'jsonwebtoken';
+
+export const protect = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, message: 'Not authorized â€” no token' });
+  }
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.admin = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ success: false, message: 'Invalid or expired token' });
+  }
+};
+
+
+=== FILE: \backend\middleware\errorHandler.js ===
+export const notFound = (req, res, next) => {
+  res.status(404).json({ success: false, message: `Route not found: ${req.originalUrl}` });
+};
+
+export const errorHandler = (err, req, res, next) => {
+  console.error('âŒ', err.message);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Internal server error'
+  });
+};
+
+
+=== FILE: \backend\routes\admin.routes.js ===
+import { Router } from 'express';
+import { protect } from '../middleware/auth.middleware.js';
+import {
+  login, getAllBookingsAdmin, getAllConsultationsAdmin,
+  updateBookingStatus, deleteBooking, getDashboardStats
+} from '../controllers/admin.controller.js';
+
+const router = Router();
+
+router.post('/login', login);
+router.get('/stats', protect, getDashboardStats);
+router.get('/bookings', protect, getAllBookingsAdmin);
+router.get('/consultations', protect, getAllConsultationsAdmin);
+router.patch('/bookings/:id/status', protect, updateBookingStatus);
+router.delete('/bookings/:id', protect, deleteBooking);
+
+export default router;
+
+
+=== FILE: \backend\routes\booking.routes.js ===
+import { Router } from 'express';
+import { getAvailability, createBooking, getBookings } from '../controllers/booking.controller.js';
+const router = Router();
+
+router.get('/availability', getAvailability);
+router.post('/', createBooking);
+router.get('/', getBookings);
+
+export default router;
+
+
+=== FILE: \backend\routes\consultation.routes.js ===
+import { Router } from 'express';
+import { submitConsultation } from '../controllers/consultation.controller.js';
+const router = Router();
+
+router.post('/', submitConsultation);
+
+export default router;
+
+
+=== FILE: \backend\routes\quiz.routes.js ===
+import { Router } from 'express';
+const router = Router();
+
+const QUESTIONS = [
+  {
+    k: "skinType",
+    t: "What is your skin type?",
+    o: [
+      ["Oily", "oily", "ðŸ’§", "Visible pores, gets shiny through the day"],
+      ["Dry", "dry", "ðŸŒµ", "Feels tight, flaky or rough"],
+      ["Combination", "combination", "â˜¯ï¸", "Oily T-zone, dry cheeks"],
+      ["Sensitive", "sensitive", "ðŸŒ¸", "Reacts easily, prone to redness"],
+    ],
+  },
+  {
+    k: "concern",
+    t: "What is your biggest skin concern?",
+    o: [
+      ["Acne & Breakouts", "acne", "ðŸ”´", "Pimples, blackheads, whiteheads"],
+      ["Pigmentation", "pigmentation", "ðŸŸ¤", "Dark spots, uneven skin tone"],
+      ["Anti-Aging", "aging", "â³", "Fine lines, dullness, loss of firmness"],
+      ["Hydration", "hydration", "ðŸ’¦", "Dry, dehydrated, lacklustre skin"],
+    ],
+  },
+  {
+    k: "sensitivity",
+    t: "How sensitive is your skin?",
+    o: [
+      ["Very Sensitive", "high", "ðŸš¨", "Burns or stings with most products"],
+      ["Mildly Sensitive", "medium", "âš ï¸", "Reacts occasionally"],
+      ["Not Sensitive", "low", "âœ…", "Most products work fine for me"],
+    ],
+  },
+  {
+    k: "routine",
+    t: "How would you describe your current skincare routine?",
+    o: [
+      ["Bare Minimum", "minimal", "ðŸ˜´", "Just a face wash, nothing else"],
+      ["Basic", "basic", "ðŸ§´", "Cleanser and moisturizer"],
+      ["Full Routine", "full", "âœ¨", "Toner, serum, SPF â€” the works"],
+    ],
+  },
+];
+
+router.get('/', (req, res) => res.json({ success: true, data: QUESTIONS }));
+
+export default router;
+
+
+=== FILE: \backend\routes\services.routes.js ===
+import { Router } from 'express';
+import { getAllServices, getServiceById } from '../controllers/services.controller.js';
+const router = Router();
+
+router.get('/', getAllServices);
+router.get('/:id', getServiceById);
+
+export default router;
+
+
+=== FILE: \backend\utils\mailer.js ===
+import nodemailer from 'nodemailer';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+// Nodemailer transport setup
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.CLINIC_EMAIL,
+    pass: process.env.CLINIC_EMAIL_PASS,
+  },
+});
+
+// 1. Client (User) ko confirmation email bhejna
+export const sendMail = async ({ to, subject, html }) => {
+  console.log(`ðŸ“¤ Attempting to send CLIENT email to: ${to}`);
+  try {
+    const info = await transporter.sendMail({
+      from: `"Kaya Holistic Spa" <${process.env.CLINIC_EMAIL}>`,
+      to: to,
+      subject: subject,
+      html: html,
+    });
+    console.log(`âœ… CLIENT email sent successfully to: ${to} | MessageID: ${info.messageId}`);
+    return info;
+  } catch (error) {
+    // NEVER throw â€” booking should succeed even if email fails
+    console.error(`âŒ CLIENT email FAILED to ${to}:`, error.message);
+    return null;
+  }
+};
+
+// 2. Owner (Admin) ko alert email bhejna
+export const notifyOwner = async ({ subject, html }) => {
+  const ownerEmail = process.env.CLINIC_OWNER_EMAIL || process.env.CLINIC_EMAIL;
+  console.log(`ðŸ“¤ Attempting to send OWNER email to: ${ownerEmail}`);
+  try {
+    const info = await transporter.sendMail({
+      from: `"Kaya System Alert" <${process.env.CLINIC_EMAIL}>`,
+      to: ownerEmail,
+      subject: subject,
+      html: html,
+    });
+    console.log(`âœ… OWNER email sent successfully to: ${ownerEmail} | MessageID: ${info.messageId}`);
+    return info;
+  } catch (error) {
+    // NEVER throw â€” booking should succeed even if email fails
+    console.error(`âŒ OWNER email FAILED:`, error.message);
+    return null;
+  }
+};
+
+
+=== FILE: \backend\nodemon.json ===
+{
+  "ignore": [
+    "data/db.json",
+    "data/*.json"
+  ]
+}
+
+
+=== FILE: \backend\package.json ===
+{
+  "name": "kaya-holistic-spa-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+   "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "ics": "^3.12.1",
+    "jsonwebtoken": "^9.0.3",
+    "lowdb": "^7.0.1",
+    "morgan": "^1.10.0",
+    "nodemailer": "^6.10.1",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}
+
+
+
+=== FILE: \backend\server.js ===
+import express from 'express';
+import cors from 'cors';
+import morgan from 'morgan';
+import dotenv from 'dotenv';
+
+import servicesRoutes from './routes/services.routes.js';
+import quizRoutes from './routes/quiz.routes.js';
+import bookingRoutes from './routes/booking.routes.js';
+import consultationRoutes from './routes/consultation.routes.js';
+import adminRoutes from './routes/admin.routes.js';
+import { notFound, errorHandler } from './middleware/errorHandler.js';
+
+dotenv.config();
+const app = express();
+
+app.use(cors({ origin: process.env.CLIENT_URL || '*' }));
+app.use(express.json());
+app.use(morgan('dev'));
+
+app.use('/api/services', servicesRoutes);
+app.use('/api/quiz', quizRoutes);
+app.use('/api/bookings', bookingRoutes);
+app.use('/api/consultation', consultationRoutes);
+app.use('/api/admin', adminRoutes);
+
+app.get('/', (req, res) => res.send('Kaya Holistic Spa API running âœ…'));
+
+app.use(notFound);
+app.use(errorHandler);
+
+const PORT = process.env.PORT || 5000;
+const server = app.listen(PORT, () => console.log(`ðŸš€ Server running on http://localhost:${PORT}`));
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`âŒ Port ${PORT} is already in use. Retrying in 2 seconds...`);
+    setTimeout(() => {
+      server.close();
+      server.listen(PORT);
+    }, 2000);
+  } else {
+    throw err;
+  }
+});
+
+
+=== FILE: \frontend\src\api\adminClient.js ===
+import axios from "axios";
+
+const adminClient = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api",
+  headers: { "Content-Type": "application/json" },
+});
+
+// Attach token automatically to every request
+adminClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem("kaya_admin_token");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+// Auto-logout on 401 (expired/invalid token)
+adminClient.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem("kaya_admin_token");
+      window.location.href = "/admin/login";
+    }
+    return Promise.reject(err);
+  }
+);
+
+export const adminLogin = (email, password) =>
+  adminClient.post("/admin/login", { email, password }).then(r => r.data.data);
+
+export const getStats = () => adminClient.get("/admin/stats").then(r => r.data.data);
+export const getAllBookings = () => adminClient.get("/admin/bookings").then(r => r.data.data);
+export const getAllConsultations = () => adminClient.get("/admin/consultations").then(r => r.data.data);
+export const updateBookingStatus = (id, status) =>
+  adminClient.patch(`/admin/bookings/${id}/status`, { status }).then(r => r.data.data);
+export const deleteBookingAdmin = (id) => adminClient.delete(`/admin/bookings/${id}`).then(r => r.data);
+
+export default adminClient;
+
+
+=== FILE: \frontend\src\api\client.js ===
+import axios from "axios";
+
+const client = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api",
+  headers: { "Content-Type": "application/json" },
+});
+
+export const getServices = () => client.get("/services").then(r => r.data.data);
+export const getQuizQuestions = () => client.get("/quiz").then(r => r.data.data);
+export const getAvailability = (date) => client.get(`/bookings/availability?date=${date}`).then(r => r.data.data);
+export const createBooking = (payload) => client.post("/bookings", payload).then(r => r.data.data);
+export const submitConsultation = (payload) => client.post("/consultation", payload).then(r => r.data.data);
+
+export default client;
+
+
+=== FILE: \frontend\src\components\Navbar.jsx ===
+import React, { useState, useEffect } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
+
+export default function Navbar() {
+  const [scrolled, setScrolled] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 20) {
+        setScrolled(true);
+      } else {
+        setScrolled(false);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  return (
+    <header className={`navbar-header ${scrolled ? "scrolled" : ""}`}>
+      <style>{`
+        .navbar-header {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          z-index: 1000;
+          padding: 20px 50px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background-color: #FAF9F6;
+          transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Scroll effects applied when user scrolls down */
+        .navbar-header.scrolled {
+          padding: 12px 50px;
+          background-color: rgba(250, 249, 246, 0.85);
+          backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+          border-bottom: 1px solid rgba(226, 232, 228, 0.8);
+        }
+
+        .nav-brand {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          cursor: pointer;
+          text-decoration: none;
+        }
+
+        .brand-icon {
+          font-size: 1.5rem;
+        }
+
+        .brand-title {
+          font-family: Georgia, serif;
+          font-size: 1.25rem;
+          font-weight: 700;
+          color: #1C2B22;
+          line-height: 1.1;
+        }
+
+        .brand-subtitle {
+          font-size: 0.72rem;
+          color: #6A7770;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        .nav-menu {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          list-style: none;
+          margin: 0;
+          padding: 0;
+        }
+
+        .nav-link {
+          text-decoration: none;
+          color: #3D5446;
+          font-size: 0.92rem;
+          font-weight: 500;
+          padding: 8px 18px;
+          border-radius: 30px;
+          transition: all 0.2s ease;
+        }
+
+        .nav-link:hover {
+          color: #1C2B22;
+          background: rgba(45, 71, 55, 0.05);
+        }
+
+        .nav-link.active {
+          background: #EAF2ED;
+          color: #2D4737;
+          font-weight: 600;
+        }
+
+        .btn-book-visit {
+          background: #2D4737;
+          color: #FFFFFF;
+          border: none;
+          padding: 10px 22px;
+          border-radius: 30px;
+          font-size: 0.9rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.25s ease;
+          box-shadow: 0 2px 8px rgba(45, 71, 55, 0.15);
+        }
+
+        .btn-book-visit:hover {
+          background: #1C2B22;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(45, 71, 55, 0.25);
+        }
+
+        @media (max-width: 768px) {
+          .navbar-header {
+            padding: 14px 20px;
+          }
+          .navbar-header.scrolled {
+            padding: 10px 20px;
+          }
+          .nav-link {
+            padding: 6px 12px;
+            font-size: 0.85rem;
+          }
+        }
+      `}</style>
+
+      <div className="nav-brand" onClick={() => navigate("/")}>
+        <span className="brand-icon">ðŸŒ¿</span>
+        <div>
+          <div className="brand-title">Kaya Holistic Spa</div>
+          <div className="brand-subtitle">Evanston, Illinois</div>
+        </div>
+      </div>
+
+      <nav className="nav-menu">
+        <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
+          Home
+        </NavLink>
+        <NavLink to="/quiz" className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
+          Skin Quiz
+        </NavLink>
+        <NavLink to="/consultation" className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
+          Consultation
+        </NavLink>
+        <button className="btn-book-visit" onClick={() => navigate("/booking")}>
+          Book a Visit
+        </button>
+      </nav>
+    </header>
+  );
+}
+
+
+=== FILE: \frontend\src\components\ProtectedRoute.jsx ===
+import { Navigate } from "react-router-dom";
+import { useAdminAuth } from "../context/AdminAuthContext";
+
+export default function ProtectedRoute({ children }) {
+  const { isAuthenticated } = useAdminAuth();
+  if (!isAuthenticated) return <Navigate to="/admin/login" replace />;
+  return children;
+}
+
+
+=== FILE: \frontend\src\context\AdminAuthContext.jsx ===
+import { createContext, useContext, useState, useEffect } from "react";
+
+const AdminAuthContext = createContext(null);
+
+export function AdminAuthProvider({ children }) {
+  const [token, setToken] = useState(localStorage.getItem("kaya_admin_token"));
+  const [email, setEmail] = useState(localStorage.getItem("kaya_admin_email"));
+
+  const login = (newToken, newEmail) => {
+    localStorage.setItem("kaya_admin_token", newToken);
+    localStorage.setItem("kaya_admin_email", newEmail);
+    setToken(newToken);
+    setEmail(newEmail);
+  };
+
+  const logout = () => {
+    localStorage.removeItem("kaya_admin_token");
+    localStorage.removeItem("kaya_admin_email");
+    setToken(null);
+    setEmail(null);
+  };
+
+  return (
+    <AdminAuthContext.Provider value={{ token, email, login, logout, isAuthenticated: !!token }}>
+      {children}
+    </AdminAuthContext.Provider>
+  );
+}
+
+export function useAdminAuth() {
+  const ctx = useContext(AdminAuthContext);
+  if (!ctx) throw new Error("useAdminAuth must be used inside AdminAuthProvider");
+  return ctx;
+}
+
+
+=== FILE: \frontend\src\context\AppContext.jsx ===
+import { createContext, useContext, useState } from "react";
+
+const AppContext = createContext(null);
+
+export function AppProvider({ children }) {
+  const [quizAnswers, setQuizAnswers] = useState({});
+  const [selectedService, setSelectedService] = useState(null);
+  const [booking, setBooking] = useState({
+    date: null, slot: null, name: "", email: "", phone: "", note: "",
+  });
+
+  const resetQuiz = () => setQuizAnswers({});
+
+  const value = {
+    quizAnswers, setQuizAnswers, resetQuiz,
+    selectedService, setSelectedService,
+    booking, setBooking,
+  };
+
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+}
+
+export function useApp() {
+  const ctx = useContext(AppContext);
+  if (!ctx) throw new Error("useApp must be used inside AppProvider");
+  return ctx;
+}
+
+
+=== FILE: \frontend\src\pages\admin\AdminDashboard.jsx ===
+import { useEffect, useState } from "react";
+import { getStats, getAllBookings, getAllConsultations, updateBookingStatus, deleteBookingAdmin } from "../../api/adminClient";
+import { useAdminAuth } from "../../context/AdminAuthContext";
+import { useNavigate } from "react-router-dom";
+
+const STATUS_COLORS = { confirmed: "#3a8a72", cancelled: "#c0392b", completed: "#6a8480" };
+
+export default function AdminDashboard() {
+  const [tab, setTab] = useState("bookings");
+  const [stats, setStats] = useState(null);
+  const [bookings, setBookings] = useState([]);
+  const [consultations, setConsultations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { email, logout } = useAdminAuth();
+  const navigate = useNavigate();
+
+  const loadAll = () => {
+    setLoading(true);
+    Promise.all([getStats(), getAllBookings(), getAllConsultations()])
+      .then(([s, b, c]) => { setStats(s); setBookings(b); setConsultations(c); })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadAll(); }, []);
+
+  const handleStatusChange = async (id, status) => {
+    await updateBookingStatus(id, status);
+    loadAll();
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm("Delete this booking permanently?")) return;
+    await deleteBookingAdmin(id);
+    loadAll();
+  };
+
+  const handleLogout = () => { logout(); navigate("/admin/login"); };
+
+  if (loading) return <div className="admin-panel"><p>Loading dashboardâ€¦</p></div>;
+
+  return (
+    <div className="admin-panel">
+      <div className="admin-header">
+        <div>
+          <h2>Welcome back, Puja</h2>
+          <p className="muted">{email}</p>
+        </div>
+        <button className="btn ghost" onClick={handleLogout}>Log out</button>
+      </div>
+
+      <div className="stats-grid">
+        <div className="stat-card"><span className="stat-num">{stats.totalBookings}</span><p>Total Bookings</p></div>
+        <div className="stat-card"><span className="stat-num">{stats.todayBookings}</span><p>Today's Bookings</p></div>
+        <div className="stat-card"><span className="stat-num">{stats.totalConsultations}</span><p>Consultations</p></div>
+        <div className="stat-card"><span className="stat-num">â‚¹{stats.totalRevenue}</span><p>Total Revenue</p></div>
+      </div>
+
+      <div className="admin-tabs">
+        <button className={tab === "bookings" ? "tab active" : "tab"} onClick={() => setTab("bookings")}>Bookings ({bookings.length})</button>
+        <button className={tab === "consultations" ? "tab active" : "tab"} onClick={() => setTab("consultations")}>Consultations ({consultations.length})</button>
+      </div>
+
+      {tab === "bookings" && (
+        <div className="admin-table-wrap">
+          {bookings.length === 0 ? <p className="muted">No bookings yet.</p> : (
+            <table className="admin-table">
+              <thead>
+                <tr><th>Client</th><th>Service</th><th>Date</th><th>Time</th><th>Price</th><th>Status</th><th>Actions</th></tr>
+              </thead>
+              <tbody>
+                {bookings.map(b => (
+                  <tr key={b.id}>
+                    <td><b>{b.name}</b><br /><span className="muted">{b.email}</span></td>
+                    <td>{b.serviceName}</td>
+                    <td>{b.date}</td>
+                    <td>{b.slot}</td>
+                    <td>â‚¹{b.price}</td>
+                    <td><span className="status-badge" style={{ background: STATUS_COLORS[b.status] || "#999" }}>{b.status}</span></td>
+                    <td className="admin-actions">
+                      {b.status !== "completed" && <button onClick={() => handleStatusChange(b.id, "completed")} title="Mark completed">âœ“</button>}
+                      {b.status !== "cancelled" && <button onClick={() => handleStatusChange(b.id, "cancelled")} title="Cancel">âœ•</button>}
+                      <button onClick={() => handleDelete(b.id)} title="Delete" style={{ color: "crimson" }}>ðŸ—‘</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {tab === "consultations" && (
+        <div className="admin-table-wrap">
+          {consultations.length === 0 ? <p className="muted">No consultations yet.</p> : (
+            consultations.map(c => (
+              <div className="consult-record" key={c.id}>
+                <div className="consult-record-head">
+                  <b>{c.name}</b> <span className="muted">{c.email}</span>
+                  <span className="muted" style={{ marginLeft: "auto" }}>{new Date(c.createdAt).toLocaleString()}</span>
+                </div>
+                <div className="consult-record-body">
+                  {Object.entries(c.answers).map(([q, a]) => (
+                    <div key={q} className="qa-row"><span className="muted">{q}</span><b>{a}</b></div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+=== FILE: \frontend\src\pages\admin\AdminLogin.jsx ===
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { adminLogin } from "../../api/adminClient";
+import { useAdminAuth } from "../../context/AdminAuthContext";
+
+export default function AdminLogin() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { login } = useAdminAuth();
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const data = await adminLogin(email, password);
+      login(data.token, data.email);
+      navigate("/admin/dashboard");
+    } catch (err) {
+      setError(err.response?.data?.message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="admin-login-wrap">
+      <form className="admin-login-card" onSubmit={handleSubmit}>
+        <div className="brand-leaf" style={{ margin: "0 auto 12px", fontSize: "2rem" }}>ðŸŒ¿</div>
+        <h2 style={{ textAlign: "center" }}>Kaya Admin</h2>
+        <p className="muted" style={{ textAlign: "center", marginBottom: 24 }}>Sign in to manage bookings</p>
+
+        <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
+        <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required />
+
+        {error && <p style={{ color: "crimson", fontSize: ".85rem" }}>{error}</p>}
+
+        <button className="btn" type="submit" disabled={loading} style={{ width: "100%", justifyContent: "center", marginTop: 8 }}>
+          {loading ? "Signing inâ€¦" : "Sign In"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+
+=== FILE: \frontend\src\pages\Booking.jsx ===
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { createBooking } from "../api/client";
+
+// IDs match backend db.json service IDs exactly
+const SERVICES = [
+  { id: "virt",    name: "Virtual Skin Consultation",           duration: "30 mins", price: "$45",  desc: "1-on-1 video skin assessment with Puja, from anywhere." },
+  { id: "deep",    name: "Deep Pore Cleansing Facial",          duration: "45 mins", price: "$75",  desc: "Routine deep-pore cleansing, steam and extractions." },
+  { id: "ultimate",name: "Ultimate Facial",                    duration: "60 mins", price: "$160", desc: "Deeply relaxing facial using fresh, breathable products." },
+  { id: "hydra",   name: "Hydra Facial",                       duration: "60 mins", price: "$200", desc: "Advanced hydra-dermabrasion for deep, visible hydration." },
+  { id: "diamond", name: "Diamond Microdermabrasion",           duration: "60 mins", price: "$125", desc: "Diamond-tip resurfacing for sun damage and dullness." },
+  { id: "anti",    name: "Anti-Aging Facial",                  duration: "75 mins", price: "$145", desc: "Customised for fine lines and blemishes with dermabrasion." },
+  { id: "express", name: "Express Facial",                     duration: "30 mins", price: "$75",  desc: "A quick refresh â€” cleanse, exfoliate and hydrate." },
+];
+
+const TIME_SLOTS = [
+  "10:00 AM", "11:15 AM", "12:30 PM", "02:00 PM", "03:15 PM", "04:30 PM", "05:15 PM"
+];
+
+export default function Booking() {
+  const navigate = useNavigate();
+
+  const [selectedService, setSelectedService] = useState(SERVICES[0]);
+  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedTime, setSelectedTime] = useState("11:15 AM");
+  const [mode, setMode] = useState("in-person");
+  const [details, setDetails] = useState({ name: "", phone: "", email: "", notes: "" });
+  const [isBooked, setIsBooked] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [bookingError, setBookingError] = useState("");
+
+  const isSunday = selectedDate ? new Date(selectedDate).getDay() === 0 : false;
+
+  const handleInputChange = (e) => {
+    setDetails({ ...details, [e.target.name]: e.target.value });
+  };
+
+  const handleConfirm = async (e) => {
+    e.preventDefault();
+    setBookingError("");
+
+    if (!selectedDate) { setBookingError("Please select a date."); return; }
+    if (isSunday) { setBookingError("We are closed on Sundays. Please select another date."); return; }
+    if (!details.name || !details.phone) { setBookingError("Please fill in your name and phone number."); return; }
+    if (!details.email) { setBookingError("Please enter your email address."); return; }
+
+    setIsLoading(true);
+    try {
+      await createBooking({
+        serviceId: selectedService.id,
+        date: selectedDate,
+        slot: selectedTime,
+        name: details.name,
+        email: details.email,
+        phone: details.phone,
+        note: details.notes,
+        mode: mode,
+      });
+      setIsBooked(true);
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Booking failed. Please try again.";
+      setBookingError(msg);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isBooked) {
+    return (
+      <div className="booking-success-wrapper">
+        <style>{`
+          .booking-success-wrapper {
+            min-height: 85vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #FAF7F2;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          }
+          .success-card {
+            background: #FFFFFF;
+            border: 1px solid #EBE5DF;
+            border-radius: 12px;
+            padding: 60px 40px;
+            max-width: 500px;
+            text-align: center;
+          }
+          .success-icon {
+            font-size: 2.5rem;
+            color: #2D3A31;
+            margin-bottom: 24px;
+            font-weight: 300;
+          }
+          .success-title { 
+            font-family: "Playfair Display", Georgia, serif;
+            font-size: 2rem; 
+            font-weight: 400; 
+            color: #2A2623; 
+            margin-bottom: 12px; 
+          }
+          .success-text { color: #5C554F; font-size: 0.95rem; line-height: 1.6; margin-bottom: 32px; }
+          .btn-home {
+            background: #2D3A31;
+            color: #FFF;
+            border: none;
+            padding: 16px 32px;
+            font-size: 0.9rem;
+            border-radius: 30px;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.3s ease;
+          }
+          .btn-home:hover { background: #1F2822; }
+        `}</style>
+        <div className="success-card">
+          <div className="success-icon">âœ“</div>
+          <h2 className="success-title">Booking Confirmed</h2>
+          <p className="success-text">
+            Thank you, <b>{details.name}</b>. Your <b>{selectedService.name}</b> is scheduled for <b>{selectedDate}</b> at <b>{selectedTime}</b>.
+            We've sent a confirmation email to <b>{details.email}</b>.
+          </p>
+          <button className="btn-home" onClick={() => navigate("/")}>
+            Return to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="booking-page-container">
+      <style>{`
+        .booking-page-container {
+          min-height: 100vh;
+          background-color: #FAF7F2;
+          padding: 60px 20px 100px 20px;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          color: #2A2623;
+          display: flex;
+          justify-content: center;
+        }
+
+        .booking-max-width { width: 100%; max-width: 1120px; }
+        
+        .booking-header { 
+          margin-bottom: 48px; 
+          text-align: center;
+        }
+        .booking-eyebrow { 
+          font-size: 0.75rem; 
+          letter-spacing: 2px; 
+          text-transform: uppercase; 
+          color: #A08060; 
+          font-weight: 600; 
+          margin-bottom: 12px; 
+        }
+        .booking-title { 
+          font-family: "Playfair Display", Georgia, serif;
+          font-size: 3rem; 
+          font-weight: 400; 
+          color: #2A2623; 
+          margin: 0; 
+          letter-spacing: -0.5px;
+        }
+
+        .booking-grid {
+          display: grid;
+          grid-template-columns: 1fr 400px;
+          gap: 48px;
+          align-items: start;
+        }
+
+        .booking-section-card {
+          margin-bottom: 40px;
+        }
+
+        .section-step-title {
+          font-size: 1.25rem;
+          font-weight: 500;
+          color: #2A2623;
+          margin: 0 0 24px 0;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          border-bottom: 1px solid #EBE5DF;
+          padding-bottom: 16px;
+        }
+
+        .step-num {
+          color: #A08060;
+          font-family: "Playfair Display", Georgia, serif;
+          font-size: 1.1rem;
+          font-style: italic;
+        }
+
+        .services-options { display: flex; flex-direction: column; gap: 16px; }
+
+        .service-option-item {
+          border: 1px solid #EBE5DF;
+          border-radius: 12px;
+          padding: 24px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          background: #FFFFFF;
+        }
+
+        .service-option-item:hover { border-color: #A08060; }
+        .service-option-item.active { 
+          border: 2px solid #A08060; 
+          background: #FCFAF7; 
+        }
+
+        .srv-name { font-weight: 500; font-size: 1.05rem; margin-bottom: 8px; color: #2A2623; }
+        .srv-desc { font-size: 0.85rem; color: #5C554F; line-height: 1.5; max-width: 85%; }
+        
+        .srv-meta { text-align: right; white-space: nowrap; }
+        .srv-price { font-weight: 500; font-size: 1.1rem; margin-bottom: 4px; color: #2A2623; }
+        .srv-dur { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: #8C847D; }
+
+        .date-picker-input {
+          width: 100%;
+          padding: 16px;
+          border: 1px solid #EBE5DF;
+          border-radius: 8px;
+          font-size: 1rem;
+          font-family: inherit;
+          color: #2A2623;
+          background: #FFF;
+          outline: none;
+          box-sizing: border-box;
+          transition: border-color 0.2s;
+        }
+
+        .date-picker-input:focus { border-color: #A08060; }
+
+        .sunday-warning {
+          margin-top: 16px;
+          padding: 16px;
+          background: #FFF;
+          border: 1px solid #FFD4D4;
+          border-radius: 8px;
+          color: #D32F2F;
+          font-size: 0.9rem;
+        }
+
+        .time-slots-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+          gap: 12px;
+          margin-top: 16px;
+        }
+
+        .time-slot-btn {
+          border: 1px solid #EBE5DF;
+          background: #FFFFFF;
+          border-radius: 8px;
+          padding: 14px 8px;
+          font-size: 0.9rem;
+          color: #2A2623;
+          cursor: pointer;
+          text-align: center;
+          transition: all 0.2s ease;
+        }
+
+        .time-slot-btn:hover:not(:disabled) { border-color: #A08060; }
+        .time-slot-btn.active { background: #2D3A31; color: #FFFFFF; border-color: #2D3A31; }
+        .time-slot-btn:disabled { background: #F5F2EE; color: #B3ADA8; border-color: #EBE5DF; cursor: not-allowed; }
+
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .form-group { display: flex; flex-direction: column; gap: 8px; }
+        .form-group.full { grid-column: 1 / -1; }
+        .form-group label { font-size: 0.75rem; font-weight: 600; color: #5C554F; text-transform: uppercase; letter-spacing: 1px; }
+
+        .form-group input, .form-group textarea {
+          padding: 16px;
+          border: 1px solid #EBE5DF;
+          border-radius: 8px;
+          font-size: 0.95rem;
+          font-family: inherit;
+          outline: none;
+          background: #FFF;
+          transition: border-color 0.2s;
+        }
+
+        .form-group input:focus, .form-group textarea:focus { border-color: #A08060; }
+
+        .summary-card-sticky {
+          position: sticky;
+          top: 40px;
+          background: #FFFFFF;
+          border: 1px solid #EBE5DF;
+          border-radius: 16px;
+          padding: 32px;
+          box-shadow: 0 10px 30px rgba(42, 38, 35, 0.03);
+        }
+
+        .summary-card-title { font-size: 1.25rem; font-weight: 500; color: #2A2623; margin: 0 0 24px 0; }
+        .summary-row { display: flex; justify-content: space-between; margin-bottom: 16px; font-size: 0.95rem; align-items: flex-start;}
+        .summary-label { color: #5C554F; }
+        .summary-val { color: #2A2623; font-weight: 500; text-align: right; line-height: 1.4; }
+        .summary-divider { height: 1px; background: #EBE5DF; margin: 24px 0; }
+        
+        .summary-total-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+        .total-label { font-size: 1rem; color: #2A2623; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+        .total-price { font-family: "Playfair Display", Georgia, serif; font-size: 2rem; font-weight: 400; color: #2A2623; }
+
+        .btn-confirm-booking {
+          width: 100%;
+          background: #2D3A31;
+          color: #FFFFFF;
+          border: none;
+          padding: 18px;
+          border-radius: 30px;
+          font-size: 0.95rem;
+          font-weight: 500;
+          letter-spacing: 0.5px;
+          cursor: pointer;
+          transition: background 0.3s;
+        }
+        .btn-confirm-booking:hover:not(:disabled) { background: #1F2822; }
+        .btn-confirm-booking:disabled { background: #D9D2CB; color: #8C847D; cursor: not-allowed; }
+
+        .spa-info-box {
+          margin-top: 32px;
+          padding-top: 24px;
+          border-top: 1px solid #EBE5DF;
+          font-size: 0.85rem;
+          color: #5C554F;
+          line-height: 1.8;
+          text-align: center;
+        }
+
+        @media (max-width: 900px) {
+          .booking-grid { grid-template-columns: 1fr; }
+          .summary-card-sticky { position: static; padding: 24px; }
+          .form-grid { grid-template-columns: 1fr; }
+          .booking-title { font-size: 2.2rem; }
+        }
+      `}</style>
+
+      <div className="booking-max-width">
+        <div className="booking-header">
+          <div className="booking-eyebrow">Book An Appointment</div>
+          <h1 className="booking-title">Reserve Your Visit</h1>
+        </div>
+
+        <div className="booking-grid">
+          <div className="booking-left">
+            <div className="booking-section-card">
+              <h3 className="section-step-title"><span className="step-num">Step 01</span> Select Treatment</h3>
+              <div className="services-options">
+                {SERVICES.map((srv) => (
+                  <div
+                    key={srv.id}
+                    className={`service-option-item ${selectedService.id === srv.id ? "active" : ""}`}
+                    onClick={() => setSelectedService(srv)}
+                  >
+                    <div>
+                      <div className="srv-name">{srv.name}</div>
+                      <div className="srv-desc">{srv.desc}</div>
+                    </div>
+                    <div className="srv-meta">
+                      <div className="srv-price">{srv.price}</div>
+                      <div className="srv-dur">{srv.duration}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="booking-section-card">
+              <h3 className="section-step-title"><span className="step-num">Step 02</span> Date & Time</h3>
+              <div style={{ marginBottom: "24px" }}>
+                <input
+                  type="date"
+                  className="date-picker-input"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                />
+              </div>
+
+              {isSunday ? (
+                <div className="sunday-warning">We are currently closed on Sundays. Please select a date from Monday to Saturday.</div>
+              ) : (
+                <div>
+                  <div className="time-slots-grid">
+                    {TIME_SLOTS.map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        className={`time-slot-btn ${selectedTime === t ? "active" : ""}`}
+                        onClick={() => setSelectedTime(t)}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="booking-section-card">
+              <h3 className="section-step-title"><span className="step-num">Step 03</span> Client Details & Mode</h3>
+              <div className="form-grid">
+                <div className="form-group full">
+                  <label>Consultation Mode</label>
+                  <select
+                    value={mode}
+                    onChange={(e) => setMode(e.target.value)}
+                    style={{
+                      padding: "16px",
+                      border: "1px solid #EBE5DF",
+                      borderRadius: "8px",
+                      fontSize: "0.95rem",
+                      fontFamily: "inherit",
+                      outline: "none",
+                      background: "#FFF",
+                      cursor: "pointer",
+                      width: "100%"
+                    }}
+                  >
+                    <option value="in-person">ðŸ“ In-Person at Spa (Evanston, IL)</option>
+                    <option value="online">ðŸŽ¥ Online Consultation (Google Meet)</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>First & Last Name</label>
+                  <input type="text" name="name" placeholder="Sarah Jenkins" value={details.name} onChange={handleInputChange} />
+                </div>
+                <div className="form-group">
+                  <label>Phone Number</label>
+                  <input type="tel" name="phone" placeholder="847-571-1910" value={details.phone} onChange={handleInputChange} />
+                </div>
+                <div className="form-group full">
+                  <label>Email Address</label>
+                  <input type="email" name="email" placeholder="sarah@example.com" value={details.email} onChange={handleInputChange} />
+                </div>
+                <div className="form-group full">
+                  <label>Additional Notes (Optional)</label>
+                  <textarea rows="3" name="notes" placeholder="Any specific skin concerns or requests..." value={details.notes} onChange={handleInputChange} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="booking-right">
+            <div className="summary-card-sticky">
+              <h3 className="summary-card-title">Summary</h3>
+
+              <div className="summary-row">
+                <span className="summary-label">Treatment</span>
+                <span className="summary-val" style={{ maxWidth: "200px" }}>{selectedService.name}</span>
+              </div>
+              <div className="summary-row">
+                <span className="summary-label">Duration</span>
+                <span className="summary-val">{selectedService.duration}</span>
+              </div>
+              <div className="summary-row">
+                <span className="summary-label">Date</span>
+                <span className="summary-val">{selectedDate}</span>
+              </div>
+              <div className="summary-row">
+                <span className="summary-label">Time</span>
+                <span className="summary-val">{isSunday ? "â€”" : selectedTime}</span>
+              </div>
+              <div className="summary-row">
+                <span className="summary-label">Mode</span>
+                <span className="summary-val">{mode === "online" ? "ðŸŽ¥ Google Meet" : "ðŸ“ In-Person"}</span>
+              </div>
+
+              <div className="summary-divider" />
+
+              <div className="summary-total-row">
+                <span className="total-label">Total</span>
+                <span className="total-price">{selectedService.price}</span>
+              </div>
+
+              {bookingError && (
+                <div style={{ background: "#fff0f0", border: "1px solid #ffd4d4", borderRadius: 8, padding: "12px 16px", marginBottom: 16, color: "#c0392b", fontSize: "0.9rem" }}>
+                  {bookingError}
+                </div>
+              )}
+              <button
+                className="btn-confirm-booking"
+                onClick={handleConfirm}
+                disabled={isSunday || isLoading}
+              >
+                {isLoading ? "Confirmingâ€¦" : isSunday ? "Select Valid Date" : "Complete Booking"}
+              </button>
+
+              <div className="spa-info-box">
+                <b>Kaya Holistic Spa</b><br />
+                1567 Sherman Avenue<br />
+                Evanston, IL 60201<br /><br />
+                By Appointment Only<br />
+                847-571-1910
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+=== FILE: \frontend\src\pages\Confirmation.jsx ===
+import { useLocation, useNavigate } from "react-router-dom";
+
+export default function Confirmation() {
+  const { state } = useLocation();
+  const navigate = useNavigate();
+
+  if (!state?.booking) {
+    return (
+      <div className="view">
+        <p>No booking found.</p>
+        <button className="btn" onClick={() => navigate("/booking")}>Go to booking</button>
+      </div>
+    );
+  }
+
+  const { booking, service } = state;
+
+  return (
+    <div className="view" style={{ textAlign: "center" }}>
+      <div className="confirm-check">âœ“</div>
+      <h2>You're booked, {booking.name}!</h2>
+      <p className="muted">A confirmation email is on its way to {booking.email}.</p>
+
+      <div className="summary-card" style={{ maxWidth: 420, margin: "24px auto", textAlign: "left" }}>
+        <div className="row"><span>Service</span><b>{service?.name || booking.serviceName}</b></div>
+        <div className="row"><span>Date</span><b>{booking.date}</b></div>
+        <div className="row"><span>Time</span><b>{booking.slot}</b></div>
+        <div className="row"><span>Location</span><b>1567 Sherman Ave, Evanston</b></div>
+      </div>
+
+      <button className="btn ghost" onClick={() => navigate("/")}>Back to home</button>
+    </div>
+  );
+}
+
+
+=== FILE: \frontend\src\pages\Consultation.jsx ===
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { submitConsultation } from "../api/client";
+import { useApp } from "../context/AppContext";
+
+const CONSULT_Q = [
+  { q: "Hi! I'm Puja. What's the main concern you'd like to address?", opts: ["Dark spots / pigmentation", "Acne and breakouts", "Dryness or dullness", "Fine lines / aging", "Redness / sensitivity", "Just need a reset!"] },
+  { q: "How long have you been dealing with this?", opts: ["Just started noticing it", "A few months", "Over a year", "Most of my life"] },
+  { q: "Have you tried any treatments or products for it before?", opts: ["Yes, but nothing worked well", "Yes, and they helped a little", "No, this is my first time", "Not sure what to try"] },
+  { q: "Any skin sensitivities or allergies I should know about?", opts: ["Fragrance sensitive", "Allergic to certain actives", "No known allergies", "Not sure"] },
+  { q: "Name and email so I can send your summary?", opts: [] },
+];
+
+const STEPS = [
+  { icon: "ðŸ’¬", title: "Share your skin story", desc: "Answer a few quick questions in the chat â€” takes under 2 minutes." },
+  { icon: "ðŸ”", title: "Puja reviews it personally", desc: "She studies your answers and photos before your session, not during it." },
+  { icon: "ðŸ“¹", title: "30-minute live session", desc: "A real video call or in-person visit â€” ask anything, get real answers." },
+  { icon: "ðŸ“", title: "Your written skin plan", desc: "A summary with product and treatment recommendations, sent to your inbox." },
+];
+
+export default function Consultation() {
+  const [chat, setChat] = useState([]);
+  const [step, setStep] = useState(0);
+  const [typing, setTyping] = useState(false);
+  const [done, setDone] = useState(false);
+  const [input, setInput] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const { setSelectedService } = useApp();
+  const navigate = useNavigate();
+
+  const answer = (text) => {
+    const newChat = [...chat, { from: "puja", text: CONSULT_Q[step].q }, { from: "user", text }];
+    setChat(newChat);
+    setInput("");
+    setTyping(true);
+    setTimeout(() => {
+      setTyping(false);
+      if (step < CONSULT_Q.length - 1) setStep(step + 1);
+      else finish(newChat);
+    }, 700 + Math.random() * 500);
+  };
+
+  const finish = async (finalChat) => {
+    setDone(true);
+    const answers = {};
+    let idx = 0;
+    finalChat.filter(c => c.from === "user").forEach(c => { answers[CONSULT_Q[idx]?.q || `q${idx}`] = c.text; idx++; });
+    try {
+      await submitConsultation({ name: name || "Guest", email: email || "not-provided@example.com", answers });
+    } catch (e) { console.error(e); }
+  };
+
+  const goBook = () => { setSelectedService({ id: "virt" }); navigate("/booking"); };
+
+  const currentQ = CONSULT_Q[step];
+  const isLast = step === CONSULT_Q.length - 1;
+  const chatProgress = done ? 100 : Math.round((step / CONSULT_Q.length) * 100);
+
+  return (
+    <div className="view consult-page">
+
+      {/* ===== HERO ===== */}
+      <div className="consult-hero">
+        <div className="section-label" style={{ color: "var(--gold)" }}>One-to-One Session</div>
+        <h2>Your skin, explained â€”<br />by someone who really knows it.</h2>
+        <p>30 minutes with a licensed esthetician. No generic advice, no guesswork â€” just answers specific to your skin.</p>
+
+        <div className="consult-hero-row">
+          <div className="consult-price-box">
+            <span className="consult-price-amt">$45</span>
+            <span className="consult-price-sub">30 min Â· virtual or in-person</span>
+          </div>
+          <div className="consult-hero-trust">
+            <span>â­ 5.0 rating</span>
+            <span>ðŸ”’ Secure booking</span>
+            <span>â†©ï¸ Reschedule anytime</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ===== MEET PUJA ===== */}
+      <div className="meet-expert-card">
+        <div className="meet-avatar">P</div>
+        <div className="meet-info">
+          <h3>Meet Puja Gupta</h3>
+          <p className="muted">Licensed Esthetician Â· 15+ years Â· GLO Skin Body Certified</p>
+          <p>Puja has spent over a decade helping clients in Evanston and Chicago understand their skin â€” not just treat it. Every consultation is one-on-one, never templated.</p>
+        </div>
+      </div>
+
+      {/* ===== HOW IT WORKS ===== */}
+      <div className="section-label" style={{ marginTop: 40 }}>The Process</div>
+      <h3 className="steps-title">What to expect</h3>
+      <div className="steps-grid">
+        {STEPS.map((s, i) => (
+          <div className="step-card" key={i}>
+            <div className="step-card-icon">{s.icon}</div>
+            <div className="step-card-num">Step {i + 1}</div>
+            <h4>{s.title}</h4>
+            <p className="muted">{s.desc}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* ===== PREP + CHAT ===== */}
+      <div className="consult-grid">
+        <div>
+          <div className="prep-card">
+            <h3>ðŸ“¸ How to prepare</h3>
+            <p>Right after booking, email 3 clear face photos (front, left, right â€” no makeup) and photos of your current products to:</p>
+            <a href="mailto:kayaholisticspa@gmail.com" className="prep-email">kayaholisticspa@gmail.com</a>
+          </div>
+
+          <div className="guarantee-card">
+            <div className="guarantee-icon">âœ“</div>
+            <div>
+              <h4>Satisfaction guaranteed</h4>
+              <p className="muted" style={{ margin: 0 }}>If the session isn't valuable to you, we'll make it right â€” no questions asked.</p>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div className="chat-card-header">
+            <h3>Start your intake chat</h3>
+            <span className="chat-progress-label">{chatProgress}% complete</span>
+          </div>
+          <div className="bar" style={{ marginBottom: 16 }}><i style={{ width: `${chatProgress}%` }} /></div>
+
+          <div className="interview-chat">
+            <div className="chat-messages">
+              {chat.map((c, i) => (
+                <div className={"msg " + (c.from === "puja" ? "puja" : "me")} key={i}>
+                  <div className="msg-avatar">{c.from === "puja" ? "P" : "Y"}</div>
+                  <div className="bubble">{c.text}</div>
+                </div>
+              ))}
+              {!done && !typing && (
+                <div className="msg puja"><div className="msg-avatar">P</div><div className="bubble">{currentQ.q}</div></div>
+              )}
+              {typing && (
+                <div className="msg puja"><div className="msg-avatar">P</div><div className="bubble"><span className="typing-dots"><span></span><span></span><span></span></span></div></div>
+              )}
+              {done && (
+                <div className="msg puja"><div className="msg-avatar">P</div><div className="bubble">Thanks! I've got your profile â€” see you soon ðŸ’›</div></div>
+              )}
+            </div>
+
+            {!done && !typing && (
+              isLast ? (
+                <div className="chat-input-row" style={{ flexDirection: "column", gap: 8 }}>
+                  <input className="chat-input" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} />
+                  <input className="chat-input" placeholder="Your email" value={email} onChange={e => setEmail(e.target.value)} />
+                  <button className="btn" onClick={() => answer(`${name} / ${email}`)} disabled={!name || !email}>Submit â†’</button>
+                </div>
+              ) : (
+                <div>
+                  <div className="chat-opts-grid">
+                    {currentQ.opts.map(o => <button className="chat-opt" key={o} onClick={() => answer(o)}>{o}</button>)}
+                  </div>
+                  <div className="chat-input-row">
+                    <input className="chat-input" placeholder="Or type your own answerâ€¦" value={input}
+                      onChange={e => setInput(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && input.trim() && answer(input.trim())} />
+                    <button className="chat-send" onClick={() => input.trim() && answer(input.trim())}>âž¤</button>
+                  </div>
+                </div>
+              )
+            )}
+
+            {done && <button className="btn" style={{ marginTop: 16, width: "100%", justifyContent: "center" }} onClick={goBook}>Book your consultation â€” $45 â†’</button>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+=== FILE: \frontend\src\pages\Home.jsx ===
+import { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { getServices } from "../api/client";
+import ServiceCard from "../components/ServiceCard";
+import Testimonials from "../components/Testimonials";
+import Gallery from "../components/Gallery";
+import Reveal from "../components/Reveal";
+
+function ServicesCarousel({ services }) {
+  const count = services.length;
+  const [active, setActive] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const startX = useRef(null);
+
+  const go = (dir) => setActive((a) => (a + dir + count) % count);
+
+  useEffect(() => {
+    if (paused || count === 0) return;
+    const t = setInterval(() => setActive((a) => (a + 1) % count), 3500);
+    return () => clearInterval(t);
+  }, [paused, count]);
+
+  if (count === 0) return null;
+
+  const offsetOf = (i) => {
+    let d = i - active;
+    if (d > count / 2) d -= count;
+    if (d < -count / 2) d += count;
+    return d;
+  };
+
+  const slotStyle = (d) => {
+    const abs = Math.abs(d);
+    return {
+      /* Fixed: Added proper math operators (* and -) for 3D positioning */
+      transform: `translateX(${d * 62}%) translateZ(${-abs * 140}px) rotateY(${-d * 38}deg) scale(${1 - abs * 0.08})`,
+      opacity: abs > 2 ? 0 : 1 - abs * 0.28,
+      zIndex: 10 - abs,
+      pointerEvents: abs > 2 ? "none" : "auto",
+    };
+  };
+
+  return (
+    <div
+      className="svc3d"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onPointerDown={(e) => { startX.current = e.clientX; }}
+      onPointerUp={(e) => {
+        if (startX.current === null) return;
+        /* Fixed: Added minus operator for drag calculation */
+        const diff = e.clientX - startX.current;
+        if (Math.abs(diff) > 50) go(diff < 0 ? 1 : -1);
+        startX.current = null;
+      }}
+    >
+      <div className="svc3d-stage">
+        {services.map((s, i) => {
+          const d = offsetOf(i);
+          return (
+            <div
+              key={s.id}
+              className={`svc3d-slot ${d === 0 ? "is-active" : ""}`}
+              style={slotStyle(d)}
+              onClickCapture={(e) => {
+                if (d !== 0) { e.stopPropagation(); setActive(i); }
+              }}
+            >
+              <ServiceCard service={s} />
+            </div>
+          );
+        })}
+      </div>
+
+      <button className="svc3d-arrow left" onClick={() => go(-1)} aria-label="Previous service">â€¹</button>
+      <button className="svc3d-arrow right" onClick={() => go(1)} aria-label="Next service">â€º</button>
+
+      <div className="svc3d-dots">
+        {services.map((s, i) => (
+          <button
+            key={s.id}
+            className={`svc3d-dot ${i === active ? "on" : ""}`}
+            onClick={() => setActive(i)}
+            aria-label={`Show ${s.name}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
+export default function Home() {
+  const [services, setServices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    getServices().then(setServices).finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="view">
+      <section className="hero">
+        <div>
+          <div className="hero-eyebrow"><span className="hero-dot" />Licensed Esthetician Â· 15+ Years</div>
+          <h1>Skin care that starts with <span className="italic-accent">knowing your skin</span>.</h1>
+          <p>Puja Gupta treats the cause of a concern, not only its surface. Take a one-minute quiz to see what suits your skin, then book your visit in Evanston.</p>
+          <div className="hero-ctas">
+            <button className="btn" onClick={() => navigate("/quiz")}>Take the skin quiz</button>
+            <button className="btn ghost" onClick={() => navigate("/booking")}>Book a visit</button>
+            <button className="btn ghost" onClick={() => navigate("/consultation")}>1-on-1 Consultation</button>
+          </div>
+          <div className="hero-trust">
+            <span>â­ 5.0 Â· 120+ reviews</span>
+            <span>ðŸ“… By appointment only</span>
+            <span>ðŸŽ“ GLO Skincare certified</span>
+          </div>
+        </div>
+      </section>
+
+    <Reveal>
+  <section className="svc-section">
+    <div className="svc-head">
+      <div>
+        <div className="section-label">Spa Services</div>
+        <h2>Designed around your <span className="italic-accent">well-being</span></h2>
+      </div>
+      <p className="svc-carousel-hint">Swipe or use arrows Â· Click the centre card to book</p>
+    </div>
+    {loading ? (
+      <div className="svc-loading">
+        <div className="quiz-spinner" />
+        <p>Loading servicesâ€¦</p>
+      </div>
+    ) : (
+      <ServicesCarousel services={services} />
+    )}
+  </section>
+</Reveal>
+
+      <Reveal>
+        <Gallery />
+      </Reveal>
+
+      <Reveal>
+        <div className="about-strip">
+          <div className="about-avatar">P</div>
+          <div>
+            <h3>Puja Gupta, Licensed Esthetician</h3>
+            <p>Over 15 years treating clients at her Evanston spa. Every treatment is personalized â€” she reads your skin, not a script.</p>
+            <div className="about-badges">
+              <span className="badge">GLO Skin Body Certified</span>
+              <span className="badge">Acne &amp; Anti-Aging Specialist</span>
+              <span className="badge">1567 Sherman Ave, Evanston</span>
+            </div>
+          </div>
+        </div>
+      </Reveal>
+
+      <Reveal>
+        <div className="trust-row">
+          <div className="trust-card"><span className="trust-num">15+</span><p>Years of practice in advanced facial treatments</p></div>
+          <div className="trust-card"><span className="trust-num">120+</span><p>Five-star reviews from Evanston and Chicago clients</p></div>
+          <div className="trust-card"><span className="trust-num">$45</span><p>Virtual skin consultation â€” book from anywhere</p></div>
+        </div>
+      </Reveal>
+
+      <Reveal>
+        <Testimonials />
+      </Reveal>
+    </div>
+  );
+}
+
+
+=== FILE: \frontend\src\pages\Quiz.jsx ===
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useApp } from "../context/AppContext";
+
+const QUESTIONS = [
+  {
+    k: "skinType",
+    t: "What is your skin type?",
+    sub: "This helps us understand your skin's natural oil and moisture balance.",
+    o: [
+      ["Oily", "oily", "Visible pores, gets shiny through the day"],
+      ["Dry", "dry", "Feels tight, flaky or rough"],
+      ["Combination", "combination", "Oily T-zone, dry cheeks"],
+      ["Sensitive", "sensitive", "Reacts easily, prone to redness"],
+    ],
+  },
+  {
+    k: "concern",
+    t: "What is your primary skin concern?",
+    sub: "We'll prioritise products that target this first.",
+    o: [
+      ["Acne & Breakouts", "acne", "Pimples, blackheads, whiteheads"],
+      ["Pigmentation", "pigmentation", "Dark spots, uneven skin tone"],
+      ["Anti-Aging", "aging", "Fine lines, dullness, loss of firmness"],
+      ["Hydration", "hydration", "Dry, dehydrated, lacklustre skin"],
+    ],
+  },
+  {
+    k: "sensitivity",
+    t: "How sensitive is your skin?",
+    sub: "So we only recommend formulas your skin can actually tolerate.",
+    o: [
+      ["Very Sensitive", "high", "Burns or stings with most products"],
+      ["Mildly Sensitive", "medium", "Reacts occasionally"],
+      ["Not Sensitive", "low", "Most products work fine for me"],
+    ],
+  },
+  {
+    k: "routine",
+    t: "How would you describe your current skincare routine?",
+    sub: "This tells us how many steps to build into your plan.",
+    o: [
+      ["Bare Minimum", "minimal", "Just a face wash, nothing else"],
+      ["Basic", "basic", "Cleanser and moisturizer"],
+      ["Full Routine", "full", "Toner, serum, SPF â€” the works"],
+    ],
+  },
+];
+
+export default function Quiz() {
+  const [step, setStep] = useState(0);
+  const [selected, setSelected] = useState(null);
+  const { quizAnswers, setQuizAnswers } = useApp();
+  const navigate = useNavigate();
+
+  const q = QUESTIONS[step];
+  const pct = ((step + 1) / QUESTIONS.length) * 100;
+
+  const pick = (val) => {
+    setSelected(val);
+    const updated = { ...quizAnswers, [q.k]: val };
+    setQuizAnswers(updated);
+    setTimeout(() => {
+      setSelected(null);
+      if (step < QUESTIONS.length - 1) setStep(step + 1);
+      else navigate("/result");
+    }, 380);
+  };
+
+  return (
+    <div className="view">
+      <style>{`
+        .view {
+          min-height: 100vh;
+          background-color: #faf8f5;
+          display: flex;
+          justify-content: center;
+          align-items: flex-start;
+          padding: 50px 20px;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          color: #2d312e;
+        }
+
+        .quiz-wrap.clinical {
+          background: #ffffff;
+          width: 100%;
+          max-width: 680px;
+          border-radius: 20px;
+          padding: 40px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+          border: 1px solid #e8e6e1;
+          box-sizing: border-box;
+        }
+
+        .quiz-top-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-end;
+          margin-bottom: 12px;
+        }
+
+        .quiz-eyebrow {
+          font-size: 0.8rem;
+          text-transform: uppercase;
+          letter-spacing: 1.5px;
+          color: #5d7563;
+          font-weight: 700;
+          margin-bottom: 4px;
+        }
+
+        .quiz-title-main {
+          font-size: 1.1rem;
+          font-weight: 600;
+          color: #1a221e;
+        }
+
+        .quiz-pct {
+          font-size: 1.1rem;
+          font-weight: 700;
+          color: #5d7563;
+        }
+
+        .bar {
+          width: 100%;
+          height: 6px;
+          background-color: #ebe9e4;
+          border-radius: 10px;
+          overflow: hidden;
+          margin-bottom: 24px;
+        }
+
+        .bar i {
+          display: block;
+          height: 100%;
+          background-color: #5d7563;
+          border-radius: 10px;
+          transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .quiz-trust-strip {
+          display: flex;
+          gap: 20px;
+          font-size: 0.85rem;
+          color: #6b726e;
+          padding-bottom: 24px;
+          border-bottom: 1px solid #f0eee9;
+          margin-bottom: 32px;
+          flex-wrap: wrap;
+        }
+
+        .step.clinical-step {
+          animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .q-title {
+          font-size: 1.75rem;
+          font-weight: 500;
+          color: #111814;
+          margin-bottom: 8px;
+          line-height: 1.3;
+        }
+
+        .q-sub {
+          font-size: 0.95rem;
+          color: #616965;
+          margin-bottom: 28px;
+          line-height: 1.5;
+        }
+
+        .opts.clinical-opts {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+
+        .opt.clinical-opt {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          width: 100%;
+          padding: 18px 22px;
+          background: #ffffff;
+          border: 1.5px solid #e2dfd7;
+          border-radius: 14px;
+          text-align: left;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          outline: none;
+        }
+
+        .opt.clinical-opt:hover {
+          border-color: #5d7563;
+          background-color: #f7f9f7;
+        }
+
+        .opt.clinical-opt.sel {
+          border-color: #5d7563;
+          background-color: #f1f5f2;
+          box-shadow: 0 4px 12px rgba(93, 117, 99, 0.12);
+        }
+
+        .opt-text {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .opt-text b {
+          font-size: 1.05rem;
+          color: #1a221e;
+          font-weight: 600;
+        }
+
+        .opt-sub {
+          font-size: 0.88rem;
+          color: #616965;
+        }
+
+        .opt-radio {
+          width: 20px;
+          height: 20px;
+          min-width: 20px;
+          border-radius: 50%;
+          border: 2px solid #c4c0b6;
+          box-sizing: border-box;
+          position: relative;
+          transition: all 0.2s ease;
+        }
+
+        .opt.clinical-opt.sel .opt-radio {
+          border-color: #5d7563;
+          background-color: #5d7563;
+          box-shadow: inset 0 0 0 3px #ffffff;
+        }
+
+        .quiz-footer-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-top: 36px;
+          padding-top: 20px;
+          border-top: 1px solid #f0eee9;
+        }
+
+        .btn.ghost {
+          background: transparent;
+          border: 1px solid #d4d0c5;
+          color: #4a544f;
+          padding: 8px 18px;
+          border-radius: 8px;
+          font-size: 0.9rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .btn.ghost:hover {
+          background: #f0eee9;
+          color: #1a221e;
+        }
+
+        .quiz-trust {
+          font-size: 0.82rem;
+          color: #7a827d;
+        }
+
+        .consult-banner.quiet {
+          margin-top: 32px;
+          background-color: #f3efe6;
+          border: 1px solid #e6e0d2;
+          border-radius: 14px;
+          padding: 20px 24px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 16px;
+        }
+
+        .consult-banner.quiet h4 {
+          margin: 0 0 4px 0;
+          font-size: 1rem;
+          font-weight: 600;
+          color: #2c3531;
+        }
+
+        .consult-banner.quiet p {
+          margin: 0;
+          font-size: 0.88rem;
+          color: #616965;
+        }
+
+        .consult-banner.quiet .btn.ghost {
+          background: #ffffff;
+          border-color: #c8c2b4;
+          white-space: nowrap;
+        }
+
+        .consult-banner.quiet .btn.ghost:hover {
+          background: #5d7563;
+          color: #ffffff;
+          border-color: #5d7563;
+        }
+
+        @media (max-width: 580px) {
+          .quiz-wrap.clinical {
+            padding: 24px 20px;
+          }
+          .quiz-footer-row {
+            flex-direction: column;
+            gap: 16px;
+            align-items: flex-start;
+          }
+          .consult-banner.quiet {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+        }
+      `}</style>
+
+      <div className="quiz-wrap clinical">
+        {/* Header */}
+        <div className="quiz-top-row">
+          <div>
+            <div className="quiz-eyebrow">Skin Assessment</div>
+            <div className="quiz-title-main">
+              Step {step + 1} of {QUESTIONS.length}
+            </div>
+          </div>
+          <div className="quiz-pct">{Math.round(pct)}%</div>
+        </div>
+        <div className="bar">
+          <i style={{ width: `${pct}%` }} />
+        </div>
+
+        {/* Trust strip */}
+        <div className="quiz-trust-strip">
+          <span>âœ“ Reviewed by licensed estheticians</span>
+          <span>âœ“ 15,000+ assessments completed</span>
+        </div>
+
+        {/* Question */}
+        <div className="step clinical-step" key={step}>
+          <div className="q-title">{q.t}</div>
+          <div className="q-sub">{q.sub}</div>
+          <div className="opts clinical-opts">
+            {q.o.map(([label, val, sub]) => (
+              <button
+                key={val}
+                className={
+                  "opt clinical-opt" +
+                  (selected === val || quizAnswers[q.k] === val ? " sel" : "")
+                }
+                onClick={() => pick(val)}
+              >
+                <div className="opt-text">
+                  <b>{label}</b>
+                  <span className="opt-sub">{sub}</span>
+                </div>
+                <div className="opt-radio" />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="quiz-footer-row">
+          {step > 0 ? (
+            <button className="btn ghost" onClick={() => setStep(step - 1)}>
+              â† Back
+            </button>
+          ) : (
+            <span />
+          )}
+          <span className="quiz-trust">
+            ðŸ”’ Confidential â€” used only to generate your recommendation
+          </span>
+        </div>
+
+        {/* Consult Banner moved to bottom, quieter */}
+        <div className="consult-banner quiet">
+          <div>
+            <h4>Prefer a professional opinion?</h4>
+            <p>
+              Book a one-on-one consultation with Puja instead of the automated
+              assessment.
+            </p>
+          </div>
+          <button
+            className="btn ghost"
+            onClick={() => navigate("/booking")}
+          >
+            Book Consult
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+=== FILE: \frontend\src\pages\Result.jsx ===
+import { useNavigate } from "react-router-dom";
+import { useApp } from "../context/AppContext";
+
+/* â”€â”€ Product database ($ USD) â”€â”€ */
+const PRODUCTS = {
+  // Oily skin
+  oily_acne: [
+    { name: "Niacinamide 10% Serum", brand: "Kaya Essentials", price: "$28", emoji: "ðŸ§´", why: "Tightens pores & controls excess sebum", tag: "Best Seller" },
+    { name: "Salicylic Acid Face Wash", brand: "Kaya Clear", price: "$18", emoji: "ðŸ«§", why: "Deeply cleans clogged pores & prevents acne", tag: "Top Pick" },
+    { name: "Oil-Free Moisturizer SPF 30", brand: "Kaya Daily", price: "$24", emoji: "â˜€ï¸", why: "Hydration without oiliness + SPF protection", tag: null },
+  ],
+  oily_pigmentation: [
+    { name: "Vitamin C Brightening Serum", brand: "Kaya Glow", price: "$38", emoji: "âœ¨", why: "Fades dark spots and unifies skin tone", tag: "Best Seller" },
+    { name: "Alpha Arbutin Cream", brand: "Kaya Essentials", price: "$30", emoji: "ðŸŒŸ", why: "Inhibits melanin production gently", tag: null },
+    { name: "Mattifying Sunscreen SPF 50", brand: "Kaya Shield", price: "$26", emoji: "ðŸ›¡ï¸", why: "Prevents sun-induced pigmentation with a matte finish", tag: "Must Have" },
+  ],
+  oily_aging: [
+    { name: "Retinol Night Serum 0.3%", brand: "Kaya Renew", price: "$48", emoji: "ðŸŒ™", why: "Boosts cell turnover & smooths fine lines", tag: "Top Pick" },
+    { name: "Hyaluronic Acid + Peptide Gel", brand: "Kaya Essentials", price: "$34", emoji: "ðŸ’§", why: "Locks in deep hydration without heaviness", tag: null },
+    { name: "Lightweight Niacinamide Toner", brand: "Kaya Clear", price: "$22", emoji: "ðŸ§ª", why: "Refines pores and smooths skin texture", tag: null },
+  ],
+  oily_hydration: [
+    { name: "Hyaluronic Acid Serum 2%", brand: "Kaya Essentials", price: "$26", emoji: "ðŸ’¦", why: "Oil-free hydration that keeps skin soft & plump", tag: "Best Seller" },
+    { name: "Gel Moisturizer", brand: "Kaya Daily", price: "$20", emoji: "ðŸ§´", why: "Lightweight, non-comedogenic gel formula", tag: null },
+    { name: "Aloe Vera Face Mist", brand: "Kaya Soothe", price: "$16", emoji: "ðŸŒ¿", why: "Instant soothing hydration throughout the day", tag: null },
+  ],
+  // Dry skin
+  dry_acne: [
+    { name: "Gentle Salicylic Cleanser", brand: "Kaya Clear", price: "$20", emoji: "ðŸ«§", why: "Treats breakouts without stripping moisture", tag: "Top Pick" },
+    { name: "Ceramide Barrier Cream", brand: "Kaya Restore", price: "$36", emoji: "ðŸº", why: "Repairs compromised moisture barrier", tag: null },
+    { name: "Benzoyl Peroxide Spot Treatment", brand: "Kaya Spot", price: "$15", emoji: "ðŸŽ¯", why: "Targeted spot treatment for active breakouts", tag: null },
+  ],
+  dry_pigmentation: [
+    { name: "Vitamin C + E Brightening Cream", brand: "Kaya Glow", price: "$42", emoji: "âœ¨", why: "Rich texture with high-potency brightening", tag: "Best Seller" },
+    { name: "Kojic Acid Night Mask", brand: "Kaya Renew", price: "$32", emoji: "ðŸŒ™", why: "Overnight spot fading & intense nourishment", tag: null },
+    { name: "Hydrating SPF 40 Cream", brand: "Kaya Shield", price: "$28", emoji: "â˜€ï¸", why: "Sun protection + rich moisturizer in one", tag: "Must Have" },
+  ],
+  dry_aging: [
+    { name: "Retinol Bakuchiol Night Cream", brand: "Kaya Renew", price: "$52", emoji: "ðŸŒ™", why: "Gentle anti-aging formula for delicate dry skin", tag: "Top Pick" },
+    { name: "Peptide Firming Serum", brand: "Kaya Lift", price: "$46", emoji: "âš—ï¸", why: "Boosts collagen production for firmer skin", tag: "Best Seller" },
+    { name: "Deep Moisture Barrier Balm", brand: "Kaya Restore", price: "$28", emoji: "ðŸº", why: "Prevents water loss overnight", tag: null },
+  ],
+  dry_hydration: [
+    { name: "Hyaluronic Acid + Ceramide Serum", brand: "Kaya Restore", price: "$35", emoji: "ðŸ’§", why: "Multi-depth hydration locks in deep moisture", tag: "Best Seller" },
+    { name: "Rich Shea Butter Moisturizer", brand: "Kaya Nourish", price: "$25", emoji: "ðŸ§ˆ", why: "Intense nourishment for dry patches", tag: null },
+    { name: "Overnight Hydration Mask", brand: "Kaya Sleep", price: "$30", emoji: "ðŸ˜´", why: "Soothes and deeply hydrates skin while you sleep", tag: "Top Pick" },
+  ],
+  // Combination
+  combination_acne: [
+    { name: "Balancing Foam Cleanser", brand: "Kaya Clear", price: "$18", emoji: "ðŸ«§", why: "Cleans T-zone without over-drying cheeks", tag: "Top Pick" },
+    { name: "Niacinamide + Zinc Serum", brand: "Kaya Essentials", price: "$26", emoji: "ðŸ§´", why: "Balances oily and dry areas simultaneously", tag: "Best Seller" },
+    { name: "Lightweight Non-Comedogenic SPF", brand: "Kaya Shield", price: "$24", emoji: "â˜€ï¸", why: "Won't clog pores, ideal for combination skin", tag: null },
+  ],
+  combination_pigmentation: [
+    { name: "Vitamin C Brightening Serum", brand: "Kaya Glow", price: "$38", emoji: "âœ¨", why: "Evens skin tone across all skin zones", tag: "Best Seller" },
+    { name: "AHA BHA Exfoliating Toner", brand: "Kaya Renew", price: "$28", emoji: "ðŸ§ª", why: "Gently exfoliates dead skin cells", tag: null },
+    { name: "Multi-Zone Moisturizer", brand: "Kaya Balance", price: "$22", emoji: "âš–ï¸", why: "Mattifies oily zones & hydrates dry areas", tag: "Top Pick" },
+  ],
+  combination_aging: [
+    { name: "Retinol Serum 0.2%", brand: "Kaya Renew", price: "$42", emoji: "ðŸŒ™", why: "Low-strength retinol ideal for combination skin", tag: "Top Pick" },
+    { name: "Antioxidant Day Cream SPF 35", brand: "Kaya Glow", price: "$32", emoji: "ðŸŒ…", why: "Protects against environmental damage", tag: null },
+    { name: "Balancing Peptide Toner", brand: "Kaya Lift", price: "$25", emoji: "âš—ï¸", why: "Tightens pores and delivers peptides", tag: null },
+  ],
+  combination_hydration: [
+    { name: "Water-Based Hyaluronic Serum", brand: "Kaya Essentials", price: "$28", emoji: "ðŸ’¦", why: "Featherlight hydration that won't weigh skin down", tag: "Best Seller" },
+    { name: "Balance & Glow Moisturizer", brand: "Kaya Balance", price: "$22", emoji: "âš–ï¸", why: "Custom moisture delivery for every area", tag: null },
+    { name: "Soothing Centella Toner", brand: "Kaya Soothe", price: "$18", emoji: "ðŸŒ¿", why: "Calms redness and reduces irritation", tag: null },
+  ],
+  // Sensitive
+  sensitive_acne: [
+    { name: "Gentle Azelaic Acid Serum", brand: "Kaya Soothe", price: "$32", emoji: "ðŸŒ¸", why: "Safest acne treatment for sensitive skin", tag: "Top Pick" },
+    { name: "Fragrance-Free Calming Cleanser", brand: "Kaya Gentle", price: "$16", emoji: "ðŸ«§", why: "No harsh chemicals, protects moisture barrier", tag: "Best Seller" },
+    { name: "Centella Barrier Moisturizer", brand: "Kaya Restore", price: "$28", emoji: "ðŸŒ¿", why: "Soothes and heals post-acne irritation", tag: null },
+  ],
+  sensitive_pigmentation: [
+    { name: "Alpha Arbutin Gentle Serum", brand: "Kaya Glow", price: "$35", emoji: "âœ¨", why: "Ultra-gentle dark spot fading", tag: "Best Seller" },
+    { name: "Mineral Sunscreen SPF 50", brand: "Kaya Shield", price: "$30", emoji: "ðŸ›¡ï¸", why: "100% physical zinc-based UV filter", tag: "Must Have" },
+    { name: "Tranexamic Acid Night Cream", brand: "Kaya Renew", price: "$38", emoji: "ðŸŒ™", why: "Tested formula for sensitive skin pigmentation", tag: null },
+  ],
+  sensitive_aging: [
+    { name: "Bakuchiol Anti-Aging Serum", brand: "Kaya Gentle", price: "$45", emoji: "ðŸŒ¿", why: "Natural plant alternative to retinol with zero sting", tag: "Top Pick" },
+    { name: "Peptide + Ceramide Night Cream", brand: "Kaya Restore", price: "$48", emoji: "ðŸŒ™", why: "Strengthens skin barrier while firming", tag: "Best Seller" },
+    { name: "Soothing SPF 40 Day Cream", brand: "Kaya Shield", price: "$26", emoji: "â˜€ï¸", why: "Protects sensitive skin with zero white cast", tag: null },
+  ],
+  sensitive_hydration: [
+    { name: "Aloe + Hyaluronic Calming Serum", brand: "Kaya Soothe", price: "$28", emoji: "ðŸŒ¿", why: "Pure hydration that instantly calms redness", tag: "Best Seller" },
+    { name: "Fragrance-Free Barrier Cream", brand: "Kaya Restore", price: "$26", emoji: "ðŸº", why: "Zero irritants, pure ceramide repair", tag: null },
+    { name: "Oat Milk Soothing Moisturizer", brand: "Kaya Gentle", price: "$22", emoji: "ðŸ¥›", why: "Colloidal oat formula brings instant relief", tag: "Top Pick" },
+  ],
+};
+
+/* â”€â”€ Score logic â”€â”€ */
+function getScores(answers) {
+  const { skinType, concern, sensitivity, routine } = answers;
+  let hydration = 60, barrier = 60, clarity = 60, glow = 60;
+
+  if (skinType === "dry") { hydration += 20; barrier += 15; }
+  if (skinType === "oily") { clarity += 10; hydration -= 10; }
+  if (skinType === "combination") { clarity += 5; }
+  if (skinType === "sensitive") { barrier += 20; }
+
+  if (concern === "acne") clarity += 15;
+  if (concern === "pigmentation") glow += 20;
+  if (concern === "aging") { glow += 10; barrier += 10; }
+  if (concern === "hydration") hydration += 25;
+
+  if (sensitivity === "high") barrier += 15;
+  if (routine === "full") { hydration += 10; glow += 10; }
+  if (routine === "minimal") { hydration -= 10; clarity -= 10; }
+
+  const cap = (v) => Math.min(95, Math.max(30, v));
+  return {
+    "Hydration Level": cap(hydration),
+    "Skin Barrier": cap(barrier),
+    "Clarity Score": cap(clarity),
+    "Radiance": cap(glow),
+  };
+}
+
+function getProducts(answers) {
+  const { skinType = "combination", concern = "hydration" } = answers;
+  const key = `${skinType}_${concern}`;
+  return PRODUCTS[key] || PRODUCTS["combination_hydration"];
+}
+
+function getSkinLabel(answers) {
+  const map = {
+    oily: "Oily Skin", dry: "Dry Skin",
+    combination: "Combination Skin", sensitive: "Sensitive Skin",
+  };
+  const concern = {
+    acne: "Acne-Prone", pigmentation: "Pigmentation",
+    aging: "Anti-Aging", hydration: "Dehydrated",
+  };
+  return `${map[answers.skinType] || "Combination"} Â· ${concern[answers.concern] || "Hydration"}`;
+}
+
+export default function Result() {
+  const { quizAnswers } = useApp();
+  const navigate = useNavigate();
+
+  if (!quizAnswers || Object.keys(quizAnswers).length < 4) {
+    return (
+      <div className="view-fallback">
+        <style>{`
+          .view-fallback {
+            min-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: #FAFAFA;
+            font-family: system-ui, -apple-system, sans-serif;
+            text-align: center;
+            padding: 20px;
+          }
+          .card-fallback {
+            background: #ffffff;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+            max-width: 380px;
+            border: 1px solid #EAEAEA;
+          }
+          .btn-primary-sp {
+            background: #2D4737;
+            color: #fff;
+            border: none;
+            padding: 12px 26px;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 18px;
+          }
+        `}</style>
+        <div className="card-fallback">
+          <h3 style={{ margin: 0, color: "#1C2B22", fontSize: "1.2rem", fontWeight: 600 }}>Assessment Incomplete</h3>
+          <p style={{ color: "#666", marginTop: "10px", fontSize: "0.9rem" }}>
+            Please complete the skin evaluation steps to access your personalized diagnostic report.
+          </p>
+          <button className="btn-primary-sp" onClick={() => navigate("/quiz")}>
+            Start Diagnostic Quiz
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const scores = getScores(quizAnswers);
+  const products = getProducts(quizAnswers);
+  const label = getSkinLabel(quizAnswers);
+  const overallScore = Math.round(Object.values(scores).reduce((a, b) => a + b, 0) / 4);
+
+  return (
+    <div className="result-view-container">
+      <style>{`
+        .result-view-container {
+          min-height: 100vh;
+          background-color: #FAFAF8;
+          padding: 40px 20px 80px 20px;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          color: #2D312E;
+          display: flex;
+          justify-content: center;
+        }
+
+        .result-max-width {
+          width: 100%;
+          max-width: 880px;
+        }
+
+        .result-hero-clean {
+          background: linear-gradient(180deg, #F5F8F6 0%, #EFF4F0 100%);
+          border: 1px solid #DDE6E0;
+          border-radius: 20px;
+          padding: 36px 40px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 24px;
+          box-shadow: 0 10px 30px rgba(45, 71, 55, 0.04);
+        }
+
+        .result-hero-left { flex: 1; }
+
+        .result-eyebrow {
+          font-size: 0.72rem;
+          text-transform: uppercase;
+          letter-spacing: 1.8px;
+          color: #4A6B56;
+          font-weight: 700;
+          margin-bottom: 8px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .result-hero-title {
+          font-size: 1.85rem;
+          font-weight: 600;
+          color: #1C2B22;
+          margin: 0 0 10px 0;
+        }
+
+        .result-hero-subtitle {
+          color: #526359;
+          font-size: 0.92rem;
+          line-height: 1.5;
+          margin: 0 0 20px 0;
+          max-width: 480px;
+        }
+
+        .result-hero-chips {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .result-chip {
+          background: #FFFFFF;
+          border: 1px solid #D8E2DC;
+          color: #3D5446;
+          padding: 5px 14px;
+          border-radius: 30px;
+          font-size: 0.8rem;
+          text-transform: capitalize;
+          font-weight: 500;
+        }
+
+        .result-hero-score-card {
+          background: #FFFFFF;
+          border: 1px solid #DDE6E0;
+          border-radius: 18px;
+          padding: 22px 28px;
+          text-align: center;
+          min-width: 140px;
+          box-shadow: 0 6px 18px rgba(0,0,0,0.03);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+
+        .score-circle-wrap {
+          width: 72px;
+          height: 72px;
+          border-radius: 50%;
+          background: conic-gradient(#4A6B56 ${overallScore * 3.6}deg, #E6EFE9 0deg);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 10px;
+        }
+
+        .score-circle-inner {
+          width: 60px;
+          height: 60px;
+          background: #FFFFFF;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 1.35rem;
+          font-weight: 700;
+          color: #1C2B22;
+        }
+
+        .result-score-label {
+          font-size: 0.72rem;
+          color: #526359;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          font-weight: 600;
+        }
+
+        .score-card {
+          background: #FFFFFF;
+          border-radius: 20px;
+          padding: 32px;
+          margin-top: 24px;
+          border: 1px solid #E8ECE9;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+        }
+
+        .score-card-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 22px;
+          padding-bottom: 16px;
+          border-bottom: 1px solid #F0F3F1;
+        }
+
+        .score-card-badge {
+          font-size: 0.7rem;
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+          font-weight: 700;
+          color: #4A6B56;
+          margin-bottom: 4px;
+          display: block;
+        }
+
+        .score-card-title {
+          font-size: 1.2rem;
+          font-weight: 600;
+          color: #1C2B22;
+          margin: 0;
+        }
+
+        .score-card-summary-pill {
+          background: #F2F6F3;
+          color: #385E42;
+          font-size: 0.78rem;
+          font-weight: 600;
+          padding: 5px 12px;
+          border-radius: 20px;
+          border: 1px solid #E1EBE2;
+        }
+
+        .score-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+          gap: 16px;
+        }
+
+        .score-metric-card {
+          background: #FAFCFA;
+          border: 1px solid #E5EBE7;
+          border-radius: 14px;
+          padding: 18px;
+        }
+
+        .metric-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 8px;
+        }
+
+        .metric-title-wrap {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .metric-icon { font-size: 1.05rem; }
+        .metric-name { font-size: 0.9rem; font-weight: 600; color: #2D312E; }
+
+        .metric-badge {
+          font-size: 0.7rem;
+          font-weight: 600;
+          padding: 3px 8px;
+          border-radius: 12px;
+        }
+
+        .badge-optimal { background: #E8F5E9; color: #2E7D32; }
+        .badge-moderate { background: #FFF8E1; color: #B78103; }
+        .badge-alert { background: #FFEBEE; color: #C62828; }
+
+        .metric-val-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          margin-bottom: 8px;
+        }
+
+        .metric-value { font-size: 1.3rem; font-weight: 700; color: #1C2B22; }
+        .metric-desc { font-size: 0.78rem; color: #6A7770; }
+
+        .score-bar-bg {
+          width: 100%;
+          height: 6px;
+          background-color: #E8ECE9;
+          border-radius: 10px;
+          overflow: hidden;
+        }
+
+        .score-fill-inner { height: 100%; border-radius: 10px; }
+
+        .products-section { margin-top: 36px; }
+        .products-title { font-size: 1.25rem; font-weight: 600; color: #1C2B22; margin: 0 0 4px 0; }
+        .products-subtitle { font-size: 0.88rem; color: #6A7770; margin: 0 0 20px 0; }
+
+        .rec-products-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          gap: 18px;
+        }
+
+        .rec-product-card {
+          background: #FFFFFF;
+          border: 1px solid #E5EBE7;
+          border-radius: 16px;
+          padding: 22px;
+          display: flex;
+          flex-direction: column;
+          position: relative;
+        }
+
+        .rec-tag {
+          position: absolute;
+          top: 16px;
+          right: 16px;
+          background: #F4F7F5;
+          color: #4A6B56;
+          font-size: 0.72rem;
+          font-weight: 600;
+          padding: 3px 8px;
+          border-radius: 12px;
+        }
+
+        .rec-emoji { font-size: 2rem; margin-bottom: 12px; }
+        .rec-brand { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.8px; color: #78857C; font-weight: 600; margin-bottom: 2px; }
+        .rec-name { font-size: 1rem; font-weight: 600; color: #1C2B22; margin-bottom: 10px; }
+
+        .rec-why {
+          font-size: 0.84rem;
+          color: #526359;
+          background: #FAFCFA;
+          padding: 10px 12px;
+          border-radius: 8px;
+          margin-bottom: 16px;
+          line-height: 1.4;
+          flex-grow: 1;
+          border-left: 2px solid #4A6B56;
+        }
+
+        .rec-footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding-top: 10px;
+          border-top: 1px solid #F0F3F1;
+        }
+
+        .rec-price { font-size: 1.1rem; font-weight: 700; color: #1C2B22; }
+
+        .btn-treatment {
+          background-color: #2D4737;
+          color: #FFFFFF;
+          border: none;
+          padding: 8px 14px;
+          border-radius: 8px;
+          font-size: 0.82rem;
+          font-weight: 500;
+          cursor: pointer;
+        }
+
+        .rec-banner {
+          margin-top: 32px;
+          background: #F4F7F5;
+          border: 1px solid #DDE6E0;
+          border-radius: 16px;
+          padding: 26px 30px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 20px;
+        }
+
+        .rec-banner h4 { margin: 0 0 4px 0; font-size: 1.1rem; color: #1C2B22; font-weight: 600; }
+
+        .rec-actions { display: flex; gap: 10px; white-space: nowrap; }
+
+        .btn-gold {
+          background-color: #2D4737;
+          color: #FFFFFF;
+          border: none;
+          padding: 10px 18px;
+          border-radius: 8px;
+          font-weight: 500;
+          font-size: 0.85rem;
+          cursor: pointer;
+        }
+
+        .btn-ghost-sp {
+          background: #FFFFFF;
+          border: 1px solid #CCD6D0;
+          color: #3D5446;
+          padding: 10px 16px;
+          border-radius: 8px;
+          font-weight: 500;
+          font-size: 0.85rem;
+          cursor: pointer;
+        }
+      `}</style>
+
+      <div className="result-max-width">
+        <div className="result-hero-clean">
+          <div className="result-hero-left">
+            <div className="result-eyebrow">âœ¦ CLINICAL SKIN DIAGNOSIS</div>
+            <h2 className="result-hero-title">{label}</h2>
+            <p className="result-hero-subtitle">
+              Based on your metrics, here is your clinical skin health report and curated regimen.
+            </p>
+            <div className="result-hero-chips">
+              {Object.entries(quizAnswers).map(([k, v]) => (
+                <span key={k} className="result-chip">{v}</span>
+              ))}
+            </div>
+          </div>
+
+          <div className="result-hero-score-card">
+            <div className="score-circle-wrap">
+              <div className="score-circle-inner">{overallScore}</div>
+            </div>
+            <div className="result-score-label">Health Index</div>
+          </div>
+        </div>
+
+        <div className="score-card">
+          <div className="score-card-header">
+            <div>
+              <span className="score-card-badge">DIAGNOSTIC METRICS</span>
+              <h3 className="score-card-title">Skin Health Breakdown</h3>
+            </div>
+            <div className="score-card-summary-pill">Clinical Assessment</div>
+          </div>
+
+          <div className="score-grid">
+            {Object.entries(scores).map(([metricLabel, val]) => {
+              const getMeta = (labelStr, scoreVal) => {
+                let icon = "ðŸ’§";
+                let desc = scoreVal >= 70 ? "Optimal balance" : "Needs targeted hydration";
+                if (labelStr.includes("Barrier")) { icon = "ðŸ›¡ï¸"; desc = scoreVal >= 70 ? "Healthy protection" : "Barrier needs repair"; }
+                else if (labelStr.includes("Clarity")) { icon = "ðŸ«§"; desc = scoreVal >= 70 ? "Clear pores" : "Exfoliation recommended"; }
+                else if (labelStr.includes("Radiance")) { icon = "âœ¨"; desc = scoreVal >= 70 ? "Good luminosity" : "Brightening recommended"; }
+
+                let status = "Optimal", badgeClass = "badge-optimal";
+                if (scoreVal < 50) { status = "Needs Focus"; badgeClass = "badge-alert"; }
+                else if (scoreVal < 70) { status = "Moderate"; badgeClass = "badge-moderate"; }
+
+                return { icon, desc, status, badgeClass };
+              };
+
+              const meta = getMeta(metricLabel, val);
+
+              return (
+                <div className="score-metric-card" key={metricLabel}>
+                  <div className="metric-header">
+                    <div className="metric-title-wrap">
+                      <span className="metric-icon">{meta.icon}</span>
+                      <span className="metric-name">{metricLabel}</span>
+                    </div>
+                    <span className={`metric-badge ${meta.badgeClass}`}>{meta.status}</span>
+                  </div>
+
+                  <div className="metric-val-row">
+                    <span className="metric-value">{val}%</span>
+                    <span className="metric-desc">{meta.desc}</span>
+                  </div>
+
+                  <div className="score-bar-bg">
+                    <div
+                      className="score-fill-inner"
+                      style={{
+                        width: `${val}%`,
+                        backgroundColor: val >= 70 ? "#4A6B56" : val >= 50 ? "#C29B38" : "#C0392B",
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="products-section">
+          <h3 className="products-title">ðŸŒ¿ Targeted Clinical Prescription</h3>
+          <p className="products-subtitle">Formulated specifically for <b>{label}</b> conditions.</p>
+          <div className="rec-products-grid">
+            {products.map((p, i) => (
+              <div className="rec-product-card" key={i}>
+                {p.tag && <div className="rec-tag">{p.tag}</div>}
+                <div className="rec-emoji">{p.emoji}</div>
+                <div className="rec-brand">{p.brand}</div>
+                <div className="rec-name">{p.name}</div>
+                <div className="rec-why">ðŸ’¡ {p.why}</div>
+                <div className="rec-footer">
+                  <span className="rec-price">{p.price}</span>
+                  <button className="btn-treatment" onClick={() => navigate("/booking")}>Book Treatment</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rec-banner">
+          <div>
+            <h4>ðŸ§–â€â™€ï¸ Need a 1-on-1 Dermatological Consultation?</h4>
+            <p style={{ margin: 0, fontSize: "0.88rem", color: "#526359" }}>
+              Get expert guidance from Puja for a personalized 30-min evaluation ($45).
+            </p>
+          </div>
+          <div className="rec-actions">
+            <button className="btn-gold" onClick={() => navigate("/consultation")}>
+              Book Consultation Â· $45
+            </button>
+            <button className="btn-ghost-sp" onClick={() => navigate("/quiz")}>
+              Retake Quiz
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+=== FILE: \frontend\src\App.jsx ===
+import { Routes, Route } from "react-router-dom";
+import { AppProvider } from "./context/AppContext";
+import { AdminAuthProvider } from "./context/AdminAuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
+import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
+import Home from "./pages/Home";
+import Quiz from "./pages/Quiz";
+import Result from "./pages/Result";
+import Consultation from "./pages/Consultation";
+import Booking from "./pages/Booking";
+import Confirmation from "./pages/Confirmation";
+import AdminLogin from "./pages/admin/AdminLogin";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+
+function PublicSite() {
+  return (
+    <>
+      <Navbar />
+      <main className="main">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/quiz" element={<Quiz />} />
+          <Route path="/result" element={<Result />} />
+          <Route path="/consultation" element={<Consultation />} />
+          <Route path="/booking" element={<Booking />} />
+          <Route path="/confirmation" element={<Confirmation />} />
+        </Routes>
+      </main>
+      <Footer />
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <AdminAuthProvider>
+      <AppProvider>
+        <Routes>
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin/dashboard" element={
+            <ProtectedRoute><AdminDashboard /></ProtectedRoute>
+          } />
+          <Route path="/*" element={<PublicSite />} />
+        </Routes>
+      </AppProvider>
+    </AdminAuthProvider>
+  );
+}
+
+
+=== FILE: \frontend\src\main.jsx ===
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
+import App from "./App.jsx";
+import "./index.css";
+
+createRoot(document.getElementById("root")).render(
+  <StrictMode>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </StrictMode>
+);
+
+
+=== FILE: \frontend\package.json ===
+{
+  "name": "frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "oxlint",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "axios": "^1.20.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "oxlint": "^1.81.0",
+    "vite": "^8.3.0"
+  }
+}
+
