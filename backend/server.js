@@ -23,11 +23,27 @@ mongoose.connect(MONGO_URI)
   .then(() => console.log('✅ MongoDB Connected Successfully'))
   .catch((err) => console.error('❌ MongoDB Connection Error:', err));
 
+const ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://kaya-holistic.vercel.app',
+  'https://kaya-holistic-39hwj5wl3-cognistock.vercel.app', // Vercel preview URL
+  process.env.CLIENT_URL, // Render env variable se dynamic URL
+].filter(Boolean);
+
 app.use(cors({
-  origin: (origin, cb) => {
-    const ok = !origin || /^http:\/\/localhost:\d+$/.test(origin) || origin === process.env.CLIENT_URL;
-    cb(null, ok);
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+    if (
+      ALLOWED_ORIGINS.indexOf(origin) !== -1 ||
+      /^http:\/\/localhost:\d+$/.test(origin)
+    ) {
+      return callback(null, true);
+    }
+    callback(new Error('Not allowed by CORS: ' + origin));
   },
+  credentials: true,
 }));
 app.use(express.json());
 app.use(morgan('dev'));
