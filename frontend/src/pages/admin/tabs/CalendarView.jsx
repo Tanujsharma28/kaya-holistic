@@ -12,11 +12,11 @@ export default function CalendarView({ bookings, open }) {
   const [showCancelled, setShowCancelled] = useState(false);
 
   const week = Array.from({ length: 7 }, (_, i) => addDays(start, i));
-  const sundayBusy = bookings.some((b) => b.date === week[6] && b.status !== "cancelled");
+  const sundayBusy = (bookings || []).some((b) => b.date === week[6] && b.status !== "cancelled");
   const days = sundayBusy ? week : week.slice(0, 6);
 
   const forDay = (d) =>
-    bookings
+    (bookings || [])
       .filter((b) => b.date === d && (showCancelled || b.status !== "cancelled"))
       .sort((a, b) => whenKey(a).localeCompare(whenKey(b)));
 

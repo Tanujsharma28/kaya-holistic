@@ -6,11 +6,11 @@ export default function Consultations({ consultations, bookings, onDelete }) {
 
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return consultations.filter((c) => !s || `${c.name} ${c.email} ${Object.values(c.answers || {}).join(" ")}`.toLowerCase().includes(s));
+    return (consultations || []).filter((c) => !s || `${c.name} ${c.email} ${Object.values(c.answers || {}).join(" ")}`.toLowerCase().includes(s));
   }, [consultations, q]);
 
   const bookingFor = (c) =>
-    bookings
+    (bookings || [])
       .filter((b) => b.type === "consultation" && b.email?.trim().toLowerCase() === c.email?.trim().toLowerCase())
       .sort((a, b) => b.date.localeCompare(a.date))[0];
 

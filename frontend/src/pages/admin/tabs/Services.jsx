@@ -53,7 +53,7 @@ export default function Services({ services, bookings, onSave, onCreate }) {
   const [n, setN] = useState({ name: "", category: CATEGORIES[0], price: "", duration: "", desc: "" });
   const set = (k) => (e) => setN({ ...n, [k]: e.target.value });
   
-  const countFor = (id) => bookings.filter((b) => b.serviceId === id).length;
+  const countFor = (id) => (bookings || []).filter((b) => b.serviceId === id).length;
 
   const add = async () => {
     const r = await onCreate(n);
@@ -79,7 +79,7 @@ export default function Services({ services, bookings, onSave, onCreate }) {
           <span />
         </div>
         
-        {services.map((s) => (
+        {(services || []).map((s) => (
           <Row key={s.id + s.price + s.duration + s.name + s.active + s.category} s={s} count={countFor(s.id)} onSave={onSave} />
         ))}
       </div>

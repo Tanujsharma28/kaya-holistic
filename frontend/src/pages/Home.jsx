@@ -6,8 +6,8 @@ import Testimonials from "../components/Testimonials";
 import Gallery from "../components/Gallery";
 import Reveal from "../components/Reveal";
 
-function ServicesCarousel({ services }) {
-  const count = services.length;
+function ServicesCarousel({ services = [] }) {
+  const count = services?.length ?? 0;
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
   const startX = useRef(null);

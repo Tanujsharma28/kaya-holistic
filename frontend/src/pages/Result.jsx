@@ -771,7 +771,7 @@ export default function Result() {
             These 5 key ingredients are specifically selected for your skin type ({r.skinProfile.label}) and concern ({r.concernData.label}):
           </p>
           <div className="ing-grid">
-            {r.ingredients.map((ing, i) => (
+            {(r.ingredients || []).map((ing, i) => (
               <div key={ing} className="ing-chip">
                 <span className="ing-num">{i + 1}</span>
                 {ing}
@@ -787,7 +787,7 @@ export default function Result() {
             <h2>Prescription Skincare Products</h2>
           </div>
           <div className="product-cards">
-            {r.products.map((p) => (
+            {(r.products || []).map((p) => (
               <div key={p.name} className="product-card">
                 <div className="product-match">✓ {p.match} Match</div>
                 <div className="product-type">{p.type}</div>
@@ -813,7 +813,7 @@ export default function Result() {
                 <h3>Morning Ritual</h3>
               </div>
               <div className="routine-steps">
-                {r.skinRoutine.morning.map((step, i) => (
+                {(r.skinRoutine?.morning || []).map((step, i) => (
                   <div key={i} className="routine-step">
                     <div className="step-num">{i + 1}</div>
                     <div className="step-text">{step}</div>
@@ -827,7 +827,7 @@ export default function Result() {
                 <h3>Evening Ritual</h3>
               </div>
               <div className="routine-steps">
-                {r.skinRoutine.evening.map((step, i) => (
+                {(r.skinRoutine?.evening || []).map((step, i) => (
                   <div key={i} className="routine-step">
                     <div className="step-num">{i + 1}</div>
                     <div className="step-text">{step}</div>

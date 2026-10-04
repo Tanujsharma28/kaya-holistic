@@ -4,7 +4,7 @@ import { StatusBadge, TypePill } from "../ui";
 
 const PAGE = 20;
 
-export default function Bookings({ bookings, initialStatus = "all", open, onPatch, onDelete }) {
+export default function Bookings({ bookings = [], initialStatus = "all", open, onPatch, onDelete }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState(initialStatus);
   const [type, setType] = useState("all");
