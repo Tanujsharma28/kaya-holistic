@@ -120,16 +120,67 @@ export default function Navbar() {
           box-shadow: 0 4px 12px rgba(45, 71, 55, 0.25);
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 900px) {
           .navbar-header {
-            padding: 14px 20px;
+            padding: 14px 24px;
           }
           .navbar-header.scrolled {
-            padding: 10px 20px;
+            padding: 10px 24px;
+          }
+        }
+
+        @media (max-width: 680px) {
+          .navbar-header {
+            padding: 12px 16px;
+            flex-wrap: wrap;
+            gap: 10px;
+          }
+          .navbar-header.scrolled {
+            padding: 10px 16px;
+          }
+          .brand-title {
+            font-size: 1.1rem;
+          }
+          .brand-subtitle {
+            display: none;
+          }
+          .nav-menu {
+            gap: 6px;
+            width: 100%;
+            justify-content: space-between;
+            overflow-x: auto;
+            padding-bottom: 2px;
+            -webkit-overflow-scrolling: touch;
           }
           .nav-link {
             padding: 6px 12px;
-            font-size: 0.85rem;
+            font-size: 0.82rem;
+            white-space: nowrap;
+          }
+          .btn-book-visit {
+            padding: 7px 16px;
+            font-size: 0.82rem;
+            white-space: nowrap;
+          }
+        }
+
+        @media (max-width: 420px) {
+          .nav-brand {
+            gap: 8px;
+          }
+          .brand-icon {
+            font-size: 1.3rem;
+          }
+          .brand-title {
+            font-size: 1.02rem;
+          }
+          .nav-link {
+            padding: 5px 9px;
+            font-size: 0.78rem;
+          }
+          .btn-book-visit {
+            padding: 6px 12px;
+            font-size: 0.78rem;
           }
         }
       `}</style>
