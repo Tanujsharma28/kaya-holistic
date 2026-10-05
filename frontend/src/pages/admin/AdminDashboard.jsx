@@ -75,6 +75,7 @@ export default function AdminDashboard() {
   const onDeleteConsult = (id) => run(() => api.deleteConsultation(id), "Intake deleted");
   const onSaveService = (id, body) => run(() => api.updateService(id, body), "Service saved");
   const onCreateService = (body) => run(() => api.createService(body), "Service added");
+  const onDeleteService = (id) => run(() => api.deleteService(id), "Service deleted");
 
   const go = (t, p = "all") => { setPreset(p); setTab(t); setOpenId(null); window.scrollTo(0, 0); };
   const doLogout = () => { logout(); navigate("/admin/login"); };
@@ -134,7 +135,7 @@ export default function AdminDashboard() {
               <Consultations consultations={data.consultations} bookings={data.bookings} onDelete={onDeleteConsult} />
             )}
             {tab === "services" && (
-              <Services services={data.services} bookings={data.bookings} onSave={onSaveService} onCreate={onCreateService} />
+              <Services services={data.services} bookings={data.bookings} onSave={onSaveService} onCreate={onCreateService} onDelete={onDeleteService} />
             )}
           </>
         )}
