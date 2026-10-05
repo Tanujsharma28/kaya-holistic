@@ -1,6 +1,6 @@
 import { v4 as uuid } from 'uuid';
 import { db } from '../config/db.js';
-import { sendMail } from '../utils/mailer.js';
+import { sendMail, notifyOwner } from '../utils/mailer.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const esc = (s = '') =>
@@ -47,8 +47,7 @@ export const submitConsultation = async (req, res) => {
     .map(([q, a]) => `<p><b>${esc(q)}</b><br>${esc(a)}</p>`)
     .join('');
 
-  sendMail({
-    to: process.env.GMAIL_USER,
+  notifyOwner({
     subject: `Skin intake: ${record.name} (${booking ? booking.date + ' ' + booking.slot : 'no booking'})`,
     html: `<h3>New skin intake from ${esc(record.name)} (${esc(record.email)})</h3>
            <p>Session: ${esc(when)}</p>${answersHtml}`,

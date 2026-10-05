@@ -16,12 +16,22 @@ export default function Bookings({ bookings = [], initialStatus = "all", open, o
   const today = todayChicago();
   const weekEnd = addDays(today, 6);
 
+  const norm = (st = "") => st.toLowerCase();
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const list = bookings.filter((b) => {
       if (q && !`${b.name} ${b.email} ${b.phone} ${b.serviceName} ${b.ref}`.toLowerCase().includes(q)) return false;
-      if (status === "needs-update") { if (!(b.status === "confirmed" && b.date < today)) return false; }
-      else if (status !== "all" && b.status !== status) return false;
+      if (status === "needs-update") { 
+        if (!((norm(b.status) === "confirmed" || norm(b.status) === "approved") && b.date < today)) return false; 
+      }
+      else if (status === "confirmed") {
+        if (norm(b.status) !== "confirmed" && norm(b.status) !== "approved") return false;
+      }
+      else if (status !== "all" && norm(b.status) !== norm(status)) {
+        return false;
+      }
+      
       if (type !== "all" && b.type !== type) return false;
       if (range === "today" && b.date !== today) return false;
       if (range === "week" && !(b.date >= today && b.date <= weekEnd)) return false;
@@ -61,7 +71,7 @@ export default function Bookings({ bookings = [], initialStatus = "all", open, o
         <input className="adm-in grow" placeholder="Search name, email, phone, service or ref" value={search} onChange={f(setSearch)} />
         <select className="adm-in" value={status} onChange={f(setStatus)}>
           <option value="all">All statuses</option>
-          <option value="confirmed">Confirmed</option>
+          <option value="confirmed">Confirmed / Approved</option>
           <option value="completed">Completed</option>
           <option value="cancelled">Cancelled</option>
           <option value="no-show">No-show</option>
@@ -105,27 +115,37 @@ export default function Bookings({ bookings = [], initialStatus = "all", open, o
             <thead>
               <tr>
                 <th style={{ width: 34 }}><input type="checkbox" checked={allOnPage} onChange={togglePage} aria-label="Select all on page" /></th>
-                <th>Client</th><th>Service</th><th>When</th><th>Price</th><th>Status</th><th />
+                <th>Client</th><th>Service</th><th>When</th><th>Price</th><th>Status</th><th style={{ textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((b) => (
-                <tr className="row" key={b.id} onClick={() => open(b.id)}>
-                  <td onClick={(e) => e.stopPropagation()}>
-                    <input type="checkbox" checked={sel.has(b.id)} onChange={() => toggle(b.id)} aria-label={`Select ${b.name}`} />
-                  </td>
-                  <td><b>{b.name}</b><br /><span className="adm-muted">{b.email}</span></td>
-                  <td>{b.serviceName}<br /><TypePill type={b.type} /></td>
-                  <td>{fmtDate(b.date)}<br /><span className="adm-muted">{fmtRange(b.slot, b.duration)}</span></td>
-                  <td>{money(b.price)}</td>
-                  <td><StatusBadge status={b.status} /></td>
-                  <td onClick={(e) => e.stopPropagation()}>
-                    {b.status === "confirmed" && (
-                      <button className="adm-btn ghost sm" onClick={() => onPatch(b.id, { status: "completed" })}>Done</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {rows.map((b) => {
+                const bStatus = norm(b.status);
+                const isLive = bStatus === "confirmed" || bStatus === "approved";
+                return (
+                  <tr className="row" key={b.id} onClick={() => open(b.id)}>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <input type="checkbox" checked={sel.has(b.id)} onChange={() => toggle(b.id)} aria-label={`Select ${b.name}`} />
+                    </td>
+                    <td><b>{b.name}</b><br /><span className="adm-muted">{b.email}</span></td>
+                    <td>{b.serviceName}<br /><TypePill type={b.type} /></td>
+                    <td>{fmtDate(b.date)}<br /><span className="adm-muted">{fmtRange(b.slot, b.duration)}</span></td>
+                    <td>{money(b.price)}</td>
+                    <td><StatusBadge status={b.status} /></td>
+                    <td onClick={(e) => e.stopPropagation()} style={{ textAlign: "right" }}>
+                      {isLive && (
+                        <div className="adm-row" style={{ justifyContent: "flex-end", gap: 6 }}>
+                          <button className="adm-btn sm" onClick={() => onPatch(b.id, { status: "completed" })}>Done</button>
+                          <button className="adm-btn danger sm" onClick={() => confirm(`Cancel booking for ${b.name}?`) && onPatch(b.id, { status: "cancelled", notify: true })}>Cancel</button>
+                        </div>
+                      )}
+                      {bStatus === "cancelled" && (
+                        <button className="adm-btn ghost sm" onClick={() => onPatch(b.id, { status: "confirmed", notify: true })}>Restore</button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

@@ -9,6 +9,7 @@ import Quiz from "./pages/Quiz";
 import Result from "./pages/Result";
 import Consultation from "./pages/Consultation";
 import Booking from "./pages/Booking";
+import OnlineConsultation from "./pages/OnlineConsultation";
 import Confirmation from "./pages/Confirmation";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -24,6 +25,7 @@ function PublicSite() {
           <Route path="/result" element={<Result />} />
           <Route path="/consultation" element={<Consultation />} />
           <Route path="/booking" element={<Booking />} />
+          <Route path="/online-consultation" element={<OnlineConsultation />} />
           <Route path="/confirmation" element={<Confirmation />} />
         </Routes>
       </main>
