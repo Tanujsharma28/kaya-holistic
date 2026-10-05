@@ -5,7 +5,7 @@ import path from 'path';
 import { db } from '../config/db.js';
 import { hasConflict, durationOf, typeOf, toMinutes } from '../utils/slots.js';
 import { sendMail } from '../utils/mailer.js';
-import { rescheduleEmail, cancellationEmail, meetLinkEmail } from '../utils/adminEmails.js';
+import { rescheduleEmail, cancellationEmail, meetLinkEmail, bookingConfirmationEmail } from '../utils/adminEmails.js';
 const MEET_RE = /^https?:\/\/[^\s]+$/i;
 
 // Helper function to check if booking is online/video call
@@ -15,7 +15,7 @@ const isVideo = (booking) => {
   return mode.includes('online') || mode.includes('video') || mode.includes('virtual');
 };
 
-const STATUSES = ['confirmed', 'completed', 'cancelled', 'no-show'];
+const STATUSES = ['confirmed', 'completed', 'cancelled', 'no-show', 'Approved', 'approved'];
 const TZ = 'America/Chicago';
 const chicagoToday = () => new Date().toLocaleDateString('en-CA', { timeZone: TZ });
 const addDays = (iso, n) => {
@@ -137,9 +137,10 @@ export const updateBooking = async (req, res) => {
   const dateChanged = date !== undefined && date !== b.date;
   const slotChanged = slot !== undefined && (toMinutes(slot) === null || toMinutes(slot) !== toMinutes(b.slot));
   const moved = dateChanged || slotChanged;
+  const dateSubmitted = date !== undefined || slot !== undefined;
   const nextStatus = status ?? b.status;
 
-  if (moved) {
+  if (moved || dateSubmitted) {
     const dt = new Date(newDate + 'T12:00:00');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate) || Number.isNaN(dt.getTime())) return bad(res, 'Invalid date');
     if (dt.getDay() === 0) return bad(res, 'The spa is closed on Sundays');
@@ -156,11 +157,12 @@ export const updateBooking = async (req, res) => {
 
   const prev = { date: b.date, slot: b.slot, status: b.status, meetLink: b.meetLink || '' };
   if (status !== undefined) b.status = status;
-  if (moved) { b.date = newDate; b.slot = newSlot; }
+  if (date !== undefined) b.date = newDate;
+  if (slot !== undefined) b.slot = newSlot;
   if (adminNote !== undefined) b.adminNote = adminNote.slice(0, 1000);
   if (meetLink !== undefined) b.meetLink = meetLink.trim();
   const linkChanged = meetLink !== undefined && b.meetLink !== prev.meetLink;
-  if (moved || linkChanged) b.reminderSent = false; // reminder fires again for the new time or link
+  if (moved || linkChanged) b.reminderSent = false;
   b.updatedAt = new Date().toISOString();
   await db.write();
 
@@ -168,10 +170,12 @@ export const updateBooking = async (req, res) => {
   if (notify && b.email) {
     if (b.status === 'cancelled' && prev.status !== 'cancelled') {
       emailed = !!(await sendMail({ to: b.email, ...cancellationEmail(enrich(b)) }));
-    } else if (moved && b.status !== 'cancelled') {
+    } else if ((dateSubmitted || moved) && b.status !== 'cancelled') {
       emailed = !!(await sendMail({ to: b.email, ...rescheduleEmail(enrich(b), prev) }));
     } else if (linkChanged && b.meetLink && isVideo(b) && b.status !== 'cancelled') {
       emailed = !!(await sendMail({ to: b.email, ...meetLinkEmail(enrich(b), b.meetLink) }));
+    } else if ((b.status === 'confirmed' || b.status === 'Approved') && prev.status !== b.status) {
+      emailed = !!(await sendMail({ to: b.email, ...bookingConfirmationEmail(enrich(b)) }));
     }
   }
   res.json({ success: true, data: enrich(b), emailed });
@@ -210,7 +214,10 @@ const parseService = (body, base = {}) => {
     if (!n || n.length > 80) return { error: 'Name is required (max 80 characters)' };
     out.name = n;
   }
-  if (body.desc !== undefined) out.desc = String(body.desc).trim().slice(0, 300);
+  if (body.category !== undefined) out.category = String(body.category).trim();
+  if (body.image !== undefined) out.image = String(body.image).trim();
+  if (body.imageUrl !== undefined) out.imageUrl = String(body.imageUrl).trim();
+  if (body.desc !== undefined) out.desc = String(body.desc).trim().slice(0, 500);
   if (body.price !== undefined) {
     const p = Number(body.price);
     if (!Number.isFinite(p) || p < 0 || p > 5000) return { error: 'Price must be between 0 and 5000' };
@@ -230,7 +237,7 @@ export const getServicesAdmin = (req, res) => res.json({ success: true, data: db
 export const createService = async (req, res) => {
   const b = req.body || {};
   if (!b.name || b.price === undefined || b.duration === undefined) return bad(res, 'Name, price and duration are required');
-  const { error, value } = parseService(b, { desc: '', active: true });
+  const { error, value } = parseService(b, { desc: '', active: true, category: 'Facials', imageUrl: '' });
   if (error) return bad(res, error);
   const slug = value.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'service';
   let id = slug, i = 2;
@@ -251,79 +258,35 @@ export const updateService = async (req, res) => {
   res.json({ success: true, data: s });
 };
 
-// Booking Approve karne aur Meet Link bhejne ka route
+export const deleteService = async (req, res) => {
+  const idx = db.data.services.findIndex((s) => s.id === req.params.id);
+  if (idx === -1) return bad(res, 'Service not found', 404);
+  db.data.services.splice(idx, 1);
+  await db.write();
+  res.json({ success: true, message: 'Service deleted successfully' });
+};
+
+// Booking Approve route
 export const approveBooking = async (req, res) => {
   const { id } = req.params;
-  const { meetLink } = req.body; // Admin custom link bhej sakta hai ya default use hoga
+  const { meetLink } = req.body;
 
   try {
     let bookingIndex = db.data.bookings.findIndex(b => b.id === id || b._id === id);
-    let booking;
-
-    if (bookingIndex !== -1) {
-      booking = db.data.bookings[bookingIndex];
-      booking.status = 'Approved';
-      booking.meetLink = meetLink || process.env.GOOGLE_MEET_LINK;
-      await db.write();
-    } else {
-      const targetDbPath = fs.existsSync(path.resolve('data/db.json')) 
-        ? path.resolve('data/db.json') 
-        : path.resolve('db.json');
-      
-      if (!fs.existsSync(targetDbPath)) {
-        return res.status(404).json({ success: false, message: "Booking nahi mili" });
-      }
-
-      const data = fs.readFileSync(targetDbPath, 'utf8');
-      const jsonDb = JSON.parse(data);
-
-      bookingIndex = jsonDb.bookings.findIndex(b => b.id === id || b._id === id);
-      if (bookingIndex === -1) {
-        return res.status(404).json({ success: false, message: "Booking nahi mili" });
-      }
-
-      booking = jsonDb.bookings[bookingIndex];
-      booking.status = 'Approved';
-      booking.meetLink = meetLink || process.env.GOOGLE_MEET_LINK;
-
-      fs.writeFileSync(targetDbPath, JSON.stringify(jsonDb, null, 2));
+    if (bookingIndex === -1) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
     }
 
-    // Approval Email HTML Template
-    const serviceName = booking.service || booking.serviceName || 'Consultation';
-    const bookingTime = booking.time || booking.slot || 'N/A';
-    const bookingMode = (booking.mode || 'in-person').toLowerCase();
+    const booking = db.data.bookings[bookingIndex];
+    booking.status = 'confirmed';
+    if (meetLink) booking.meetLink = meetLink.trim();
+    booking.updatedAt = new Date().toISOString();
+    await db.write();
 
-    const approvalHtml = `
-      <div style="font-family: Arial, sans-serif; padding: 20px; color: #2c2a29;">
-        <h2 style="color: #b8973c;">Your Booking is Approved! 🎉</h2>
-        <p>Dear ${booking.name},</p>
-        <p>Your consultation at <strong>Kaya Holistic Spa</strong> has been officially confirmed by our team.</p>
-        <ul>
-          <li><strong>Service:</strong> ${serviceName}</li>
-          <li><strong>Date:</strong> ${booking.date}</li>
-          <li><strong>Time:</strong> ${bookingTime}</li>
-          <li><strong>Mode:</strong> ${bookingMode.toUpperCase()}</li>
-        </ul>
-        ${bookingMode === 'online' || bookingMode === 'video' ? `
-          <div style="background-color: #f9f8f6; padding: 15px; border-left: 4px solid #b8973c; margin: 20px 0;">
-            <p style="margin:0; font-weight: bold;">🎥 Google Meet Link:</p>
-            <a href="${booking.meetLink}" style="color: #b8973c; text-decoration: underline;">${booking.meetLink}</a>
-            <p style="margin-top: 5px; font-size: 12px; color: #666;">Please join 5 minutes prior to your slot time.</p>
-          </div>
-        ` : `<p><strong>📍 Location:</strong> Kaya Holistic Spa Main Center</p>`}
-        <p>We look forward to giving you a rejuvenating experience.</p>
-      </div>
-    `;
+    const enriched = enrich(booking);
+    const emailed = !!(await sendMail({ to: booking.email, ...bookingConfirmationEmail(enriched) }));
 
-    // Client ko Mail bhein
-    await sendMail({
-      to: booking.email,
-      subject: `Booking Confirmed: Kaya Holistic Spa (${booking.date})`,
-      html: approvalHtml
-    });
-
-    res.status(200).json({ success: true, message: "Booking approved and email sent successfully!", booking });
+    res.status(200).json({ success: true, message: "Booking approved and email sent!", booking: enriched, emailed });
   } catch (error) {
     console.error("Approval error:", error);
     res.status(500).json({ success: false, message: error.message });

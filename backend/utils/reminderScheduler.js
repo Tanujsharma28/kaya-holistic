@@ -1,66 +1,62 @@
 import cron from 'node-cron';
-import fs from 'fs';
-import path from 'path';
-import { sendMail } from './mailer.js';
+import { db } from '../config/db.js';
+import { sendMail, notifyOwner } from './mailer.js';
+import { toMinutes, durationOf } from './slots.js';
+import { meetLinkEmail, ownerMeetLinkEmail } from './adminEmails.js';
+import { createMeetEvent } from './googleMeet.js';
 
-const dbPath = path.resolve('db.json');
+const LEAD_MIN = 30;
+let running = false;
 
 export const initReminderCron = () => {
-  // Har 1 minute par check karo
   cron.schedule('* * * * *', async () => {
+    if (running) return;
+    running = true;
     try {
-      if (!fs.existsSync(dbPath)) return;
-      const data = fs.readFileSync(dbPath, 'utf8');
-      const db = JSON.parse(data);
-
       const now = new Date();
+      const today = now.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Chicago', hour: 'numeric', minute: 'numeric', hour12: false,
+      }).formatToParts(now);
+      const nowMin = (Number(parts.find(p => p.type === 'hour').value) % 24) * 60
+        + Number(parts.find(p => p.type === 'minute').value);
 
-      db.bookings = await Promise.all(db.bookings.map(async (booking) => {
-        // Sirf online, approved aur jinhe reminder nahi gaya unhe target karo
-        if (booking.mode === 'online' && booking.status === 'Approved' && !booking.reminderSent) {
-          
-          // Booking date + time combine karke Date object banao
-          const bookingDateTime = new Date(`${booking.date}T${booking.time}`);
-          const diffInMinutes = Math.floor((bookingDateTime - now) / (1000 * 60));
+      for (const b of db.data.bookings) {
+        if (b.mode !== 'online' || b.status !== 'confirmed' || b.date !== today || b.reminderSent) continue;
+        const start = toMinutes(b.slot);
+        if (start === null) continue;
+        const dur = durationOf(db.data, b);
+        const diff = start - nowMin;
+        // 30 min pehle se session khatam hone tak (server down tha to bhi catch-up)
+        if (diff > LEAD_MIN || diff < -dur) continue;
 
-          // Agar meeting exact 30 mins baad hai (25 se 31 min ke bich safety margin)
-          if (diffInMinutes >= 0 && diffInMinutes <= 30) {
-            console.log(`⏰ Sending 30-min reminder to: ${booking.email}`);
-
-            const reminderHtml = `
-              <div style="font-family: Arial, sans-serif; padding: 20px; color: #2c2a29;">
-                <h2 style="color: #b8973c;">Starting in 30 Minutes! ⏳</h2>
-                <p>Dear ${booking.name},</p>
-                <p>Your online skincare consultation with <strong>Kaya Holistic Spa</strong> is starting in 30 minutes.</p>
-                <div style="background-color: #f9f8f6; padding: 15px; border-left: 4px solid #b8973c; margin: 20px 0;">
-                  <p style="margin:0; font-weight: bold;">🎥 Direct Google Meet Link:</p>
-                  <a href="${booking.meetLink}" style="color: #b8973c; font-size: 16px; font-weight: bold;">Click Here to Join Meeting</a>
-                </div>
-                <p>See you online soon!</p>
-              </div>
-            `;
-
-            try {
-              await sendMail({
-                to: booking.email,
-                subject: `REMINDER: Your Consultation Starts in 30 Mins!`,
-                html: reminderHtml
-              });
-              booking.reminderSent = true; // Mark as sent
-            } catch (err) {
-              console.error("Reminder mail error:", err);
-            }
+        if (!b.meetLink) {
+          try {
+            b.meetLink = await createMeetEvent({ ...b, duration: dur });
+          } catch (err) {
+            console.error('Meet link retry failed:', err.message);
+            b.meetLink = process.env.GOOGLE_MEET_LINK || '';
           }
+          if (!b.meetLink) continue;
         }
-        return booking;
-      }));
 
-      // Update db.json
-      fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+        console.log(`⏰ Sending reminder for booking ${b.id} (${b.email})`);
+        b.reminderSent = true;
+        b.meetLinkSent = true;
+        await db.write();
+
+        const full = { ...b, duration: dur, ref: String(b.id).slice(0, 8).toUpperCase() };
+        await Promise.allSettled([
+          sendMail({ to: b.email, ...meetLinkEmail(full, b.meetLink) }),
+          notifyOwner(ownerMeetLinkEmail(full, b.meetLink)),
+        ]);
+      }
     } catch (error) {
-      console.error("Cron Error:", error);
+      console.error('Reminder cron error:', error.message);
+    } finally {
+      running = false;
     }
   });
 
-  console.log("⏰ 30-Minute Reminder Cron Scheduler Initialized!");
+  console.log('⏰ Reminder scheduler shuru');
 };

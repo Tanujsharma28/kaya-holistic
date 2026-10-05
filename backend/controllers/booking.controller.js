@@ -4,6 +4,7 @@ import { sendMail, notifyOwner } from '../utils/mailer.js';
 import { hasConflict, toMinutes, typeOf } from '../utils/slots.js';
 import Booking from '../models/Booking.js';
 import { sendConfirmationEmail } from '../utils/sendEmail.js';
+import { createMeetEvent } from '../utils/googleMeet.js';
 
 const ADDRESS = '1567 Sherman Avenue, Evanston, IL 60201';
 const PHONE = '847-571-1910';
@@ -52,6 +53,7 @@ const row = (k, v) =>
    <td style="padding:11px 0;border-bottom:1px solid #eee3d3;font-size:15px;color:#2b2016;font-weight:600">${v}</td></tr>`;
 
 function clientEmail({ b, service, formattedDate, isOnline, link }) {
+    const intakeUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/consultation?booking=${b.id}`;
   const online = isOnline
     ? `<table width="100%" cellpadding="0" cellspacing="0" style="background:#fbf3e7;border:1px solid #e6d3b3;border-radius:12px"><tr><td style="padding:22px;text-align:center">
         <p style="margin:0 0 6px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#7c5c38;font-weight:700">Online session on Google Meet</p>
@@ -90,6 +92,10 @@ function clientEmail({ b, service, formattedDate, isOnline, link }) {
   </table>
 </td></tr>
 <tr><td style="padding:20px 36px 8px">${online}</td></tr>
+${isOnline ? `<tr><td style="padding:12px 36px 8px;text-align:center">
+  <p style="margin:0 0 12px;font-size:14px;color:#5c4f41;line-height:1.6">One more step: tell Puja about your skin (2 minutes) so she can prepare for your session.</p>
+  <a href="${esc(intakeUrl)}" style="display:inline-block;background:#241a13;color:#fff;text-decoration:none;font-weight:600;padding:12px 26px;border-radius:99px">Complete your skin profile</a>
+</td></tr>` : ''}
 <tr><td style="padding:20px 36px 34px;text-align:center">
   <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ADDRESS)}" style="display:inline-block;border:1.5px solid #a67c52;color:#7c5c38;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:12px 28px;border-radius:99px">Get directions</a>
 </td></tr>
@@ -158,7 +164,7 @@ export const createBooking = async (req, res) => {
   const isOnline = mode === 'online' || mode === 'virtual';
   const ownLink = isOnline && /^https:\/\/meet\.google\.com\//i.test(String(videoLink).trim()) ? String(videoLink).trim() : '';
 
-  const booking = {
+   const booking = {
     id: uuid(),
     serviceId, serviceName: service.name, price: service.price, duration: service.duration,
     type: typeOf({ serviceId, type: type === 'consultation' || type === 'visit' ? type : undefined }),
@@ -169,15 +175,27 @@ export const createBooking = async (req, res) => {
     note: String(note || '').slice(0, 1000),
     addOns,
     mode: isOnline ? 'online' : 'in-person',
-    meetLink: ownLink, // empty means "use the default link from .env"
+    meetLink: ownLink,
+    meetLinkSent: false,
+    reminderSent: false,
     status: 'confirmed',
     createdAt: new Date().toISOString(),
   };
 
+  // Slot pehle lock karo (double booking se bachne ke liye), phir link banao
   db.data.bookings.push(booking);
   await db.write();
 
-  const link = isOnline ? booking.meetLink || process.env.GOOGLE_MEET_LINK || '' : '';
+  if (isOnline && !booking.meetLink) {
+    try {
+      booking.meetLink = await createMeetEvent(booking);
+      await db.write();
+    } catch (err) {
+      console.error('Meet link booking ke time nahi bana, cron retry karega:', err.message);
+    }
+  }
+
+  const link = isOnline ? booking.meetLink : '';
   const ctx = { b: booking, service, formattedDate, isOnline, link };
 
   const results = await Promise.allSettled([

@@ -3,7 +3,7 @@ import { verifyAdmin, verifyAdmin as protect } from '../middleware/auth.middlewa
 import {
   login, getAllBookingsAdmin, getAllConsultationsAdmin, getDashboardStats,
   updateBooking, deleteBooking, bulkDeleteBookings, deleteConsultation,
-  getServicesAdmin, createService, updateService, approveBooking
+  getServicesAdmin, createService, updateService, deleteService, approveBooking
 } from '../controllers/admin.controller.js';
 
 const router = Router();
@@ -20,5 +20,6 @@ router.delete('/consultations/:id', protect, deleteConsultation);
 router.get('/services', protect, getServicesAdmin);
 router.post('/services', protect, createService);
 router.patch('/services/:id', protect, updateService);
+router.delete('/services/:id', protect, deleteService);
 
 export default router;
