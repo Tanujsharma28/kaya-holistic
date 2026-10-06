@@ -249,6 +249,7 @@ export const createService = async (req, res) => {
 };
 
 export const updateService = async (req, res) => {
+  if (req.params.id === 'virt' && req.body?.active === false) return bad(res, 'The online consultation service cannot be turned off.');
   const s = db.data.services.find((x) => x.id === req.params.id);
   if (!s) return bad(res, 'Service not found', 404);
   const { error, value } = parseService(req.body || {}, s);
@@ -259,6 +260,7 @@ export const updateService = async (req, res) => {
 };
 
 export const deleteService = async (req, res) => {
+  if (req.params.id === 'virt') return bad(res, 'The online consultation service cannot be deleted.');
   const idx = db.data.services.findIndex((s) => s.id === req.params.id);
   if (idx === -1) return bad(res, 'Service not found', 404);
   db.data.services.splice(idx, 1);

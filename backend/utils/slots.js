@@ -42,3 +42,22 @@ export function hasConflict(data, { date, slot, duration = 45, ignoreId = null }
     return start < bEnd && bStart < start + duration;
   });
 }
+
+export const chicagoNow = () => {
+  const now = new Date();
+  const date = now.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago', hour: 'numeric', minute: 'numeric', hour12: false,
+  }).formatToParts(now);
+  const minutes = (Number(parts.find((p) => p.type === 'hour').value) % 24) * 60
+    + Number(parts.find((p) => p.type === 'minute').value);
+  return { date, minutes };
+};
+
+export const isPast = (date, slot) => {
+  const n = chicagoNow();
+  if (date < n.date) return true;
+  if (date > n.date) return false;
+  const m = toMinutes(slot);
+  return m !== null && m <= n.minutes;
+};

@@ -17,9 +17,12 @@ const getTransporter = () => {
     console.error('❌ Email Transporter Error: Missing email credentials in environment variables');
     return null;
   }
-  return nodemailer.createTransport({
+    return nodemailer.createTransport({
     service: 'gmail',
     auth: { user, pass },
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 10000,
   });
 };
 

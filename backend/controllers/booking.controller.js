@@ -1,7 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import { db } from '../config/db.js';
 import { sendMail, notifyOwner } from '../utils/mailer.js';
-import { hasConflict, toMinutes, typeOf } from '../utils/slots.js';
+import { hasConflict, toMinutes, typeOf, isPast } from '../utils/slots.js';
 import Booking from '../models/Booking.js';
 import { sendConfirmationEmail } from '../utils/sendEmail.js';
 import { createMeetEvent } from '../utils/googleMeet.js';
@@ -24,7 +24,7 @@ export const getAvailability = (req, res) => {
   let hour = 10, min = 0;
   while (hour < 18) {
     const label = `${hour > 12 ? hour - 12 : hour}:${min === 0 ? '00' : min} ${hour >= 12 ? 'PM' : 'AM'}`;
-    const taken = hasConflict(db.data, { date, slot: label, duration: 45 });
+    const taken = isPast(date, label) || hasConflict(db.data, { date, slot: label, duration: 45 });
     slots.push({ time: label, available: !taken });
     min += 45;
     if (min >= 60) { min -= 60; hour++; }
@@ -146,6 +146,9 @@ export const createBooking = async (req, res) => {
   if (toMinutes(slot) === null) {
     return res.status(400).json({ success: false, message: 'Invalid time' });
   }
+  if (isPast(date, slot)) {
+    return res.status(400).json({ success: false, message: 'That time has already passed. Please pick a later slot.' });
+  }
 
   const service = db.data.services.find((s) => s.id === serviceId);
   if (!service) return res.status(404).json({ success: false, message: 'Invalid service' });
@@ -198,7 +201,7 @@ export const createBooking = async (req, res) => {
   const link = isOnline ? booking.meetLink : '';
   const ctx = { b: booking, service, formattedDate, isOnline, link };
 
-  const results = await Promise.allSettled([
+  Promise.allSettled([
     sendMail({
       to: booking.email,
       subject: `Appointment confirmed: ${service.name} on ${formattedDate}`,
@@ -208,8 +211,9 @@ export const createBooking = async (req, res) => {
       subject: `New booking: ${booking.name}, ${service.name}, ${formattedDate} at ${slot}`,
       html: ownerEmail(ctx),
     }),
-  ]);
-  results.forEach((r) => r.status === 'rejected' && console.error('Email error:', r.reason?.message));
+  ]).then((results) =>
+    results.forEach((r) => r.status === 'rejected' && console.error('Email error:', r.reason?.message))
+  );
 
   res.status(201).json({ success: true, data: booking });
 };

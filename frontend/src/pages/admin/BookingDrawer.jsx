@@ -14,9 +14,9 @@ export default function BookingDrawer({ booking: b, consultations, onClose, onPa
   const intake = useMemo(
     () =>
       consultations
-        .filter((c) => c.email?.trim().toLowerCase() === b.email?.trim().toLowerCase())
+        .filter((c) => c.bookingId ? c.bookingId === b.id : c.email?.trim().toLowerCase() === b.email?.trim().toLowerCase())
         .sort((x, y) => new Date(y.createdAt) - new Date(x.createdAt))[0],
-    [consultations, b.email]
+    [consultations, b.email, b.id]
   );
 
   const normStatus = (b.status || "").toLowerCase();
@@ -187,7 +187,7 @@ export default function BookingDrawer({ booking: b, consultations, onClose, onPa
 
         {intake && (
           <div className="adm-sec">
-            <h4>Skin intake (matched by email)</h4>
+           <h4>Skin intake</h4>
             {Object.entries(intake.answers || {}).map(([q, a]) => (
               <div className="adm-qa" key={q}><span>{q}</span><b>{String(a)}</b></div>
             ))}

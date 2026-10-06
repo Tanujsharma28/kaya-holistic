@@ -44,7 +44,7 @@ export default function Consultation() {
       setDone(true);
     } catch (e) {
       console.error(e);
-      setError("We couldn't save your answers. Please check your connection and try again.");
+      setError(e?.response?.data?.message || "We couldn't save your answers. Please check your connection and try again.");
     } finally {
       setTyping(false);
     }
@@ -66,10 +66,89 @@ export default function Consultation() {
   const showQuestion = !done && !typing && !error;
   const progress = done ? 100 : Math.round((answers.length / INTAKE_Q.length) * 100);
 
+  const prepCard = (
+    <div className="prep-card">
+      <h3>📸 How to prepare</h3>
+      <p>Please email 3 clear face photos (front, left, right, no makeup) and photos of your current products to:</p>
+      <a
+        href={`mailto:kayaholisticspa@gmail.com?subject=${encodeURIComponent(ref ? `Skin photos - ${ref}` : "Skin photos")}`}
+        className="prep-email"
+      >kayaholisticspa@gmail.com</a>
+      {ref && <p className="muted" style={{ fontSize: 13, marginTop: 8 }}>Please add your booking reference <b>{ref}</b> in the subject line.</p>}
+    </div>
+  );
+
+  const chat = (
+    <>
+      <div className="chat-card-header">
+        <h3>Tell Puja about your skin</h3>
+        <span className="chat-progress-label">{done ? "Done" : `${Math.min(answers.length + 1, INTAKE_Q.length)} of ${INTAKE_Q.length}`}</span>
+      </div>
+      <div className="bar" style={{ marginBottom: 16 }}><i style={{ width: `${progress}%` }} /></div>
+
+      <div className="interview-chat">
+        <div className="chat-messages">
+          {answers.map((x, i) => (
+            <div key={i}>
+              <div className="msg puja"><div className="msg-avatar">P</div><div className="bubble">{x.q}</div></div>
+              <div className="msg me"><div className="msg-avatar">Y</div><div className="bubble">{x.a}</div></div>
+            </div>
+          ))}
+          {showQuestion && (
+            <div className="msg puja"><div className="msg-avatar">P</div><div className="bubble">{currentQ.q}</div></div>
+          )}
+          {typing && (
+            <div className="msg puja"><div className="msg-avatar">P</div><div className="bubble"><span className="typing-dots"><span></span><span></span><span></span></span></div></div>
+          )}
+          {done && (
+            <div className="msg puja"><div className="msg-avatar">P</div><div className="bubble">Thank you! I'll review this before your session. See you soon 💛</div></div>
+          )}
+          {error && <p style={{ color: "#b3261e", fontSize: 14 }}>{error}</p>}
+        </div>
+
+        {showQuestion && (
+          <div>
+            <div className="chat-opts-grid">
+              {currentQ.opts.map((o) => <button className="chat-opt" key={o} onClick={() => answer(o)}>{o}</button>)}
+            </div>
+            <div className="chat-input-row">
+              <input className="chat-input" placeholder="Or type your own answer…" value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && input.trim() && answer(input.trim())} />
+              <button className="chat-send" onClick={() => input.trim() && answer(input.trim())}>➤</button>
+            </div>
+          </div>
+        )}
+
+        {error && <button className="btn" style={{ marginTop: 12 }} onClick={() => send(answers)}>Try again</button>}
+        {done && (
+          <button className="btn ghost" style={{ marginTop: 16, width: "100%", justifyContent: "center" }} onClick={() => navigate("/")}>Back to home</button>
+        )}
+      </div>
+    </>
+  );
+
+  // ===== Booking ke baad: sirf intake chat =====
+  if (bookingId) {
+    return (
+      <div className="view consult-page">
+        <div style={{ maxWidth: 680, margin: "0 auto" }}>
+          <div className="section-label">Step 2 of 2</div>
+          <h2 style={{ marginTop: 6 }}>Tell Puja about your <span className="italic-accent">skin</span></h2>
+          <p className="muted" style={{ marginBottom: 24 }}>
+            Your session is booked. Answer 5 quick questions (about 2 minutes) so Puja can prepare before your call.
+          </p>
+          {chat}
+          <div style={{ marginTop: 24 }}>{prepCard}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // ===== Normal sales page =====
   return (
     <div className="view consult-page">
 
-      {/* ===== HERO ===== */}
       <div className="consult-hero">
         <div className="section-label">One-to-One Session</div>
         <h2>Your skin, explained —<br />by someone who <span className="italic-accent">really knows it</span>.</h2>
@@ -89,7 +168,6 @@ export default function Consultation() {
         </div>
       </div>
 
-      {/* ===== MEET PUJA ===== */}
       <div className="meet-expert-card">
         <div className="meet-avatar">P</div>
         <div className="meet-info">
@@ -99,7 +177,6 @@ export default function Consultation() {
         </div>
       </div>
 
-      {/* ===== HOW IT WORKS ===== */}
       <div className="section-label" style={{ marginTop: 40 }}>The Process</div>
       <h3 className="steps-title">What to expect</h3>
       <div className="steps-grid">
@@ -113,18 +190,9 @@ export default function Consultation() {
         ))}
       </div>
 
-      {/* ===== PREP + INTAKE ===== */}
       <div className="consult-grid">
         <div>
-          <div className="prep-card">
-            <h3>📸 How to prepare</h3>
-            <p>After booking, email 3 clear face photos (front, left, right, no makeup) and photos of your current products to:</p>
-            <a
-              href={`mailto:kayaholisticspa@gmail.com?subject=${encodeURIComponent(ref ? `Skin photos - ${ref}` : "Skin photos")}`}
-              className="prep-email"
-            >kayaholisticspa@gmail.com</a>
-          </div>
-
+          {prepCard}
           <div className="guarantee-card">
             <div className="guarantee-icon">✓</div>
             <div>
@@ -133,66 +201,13 @@ export default function Consultation() {
             </div>
           </div>
         </div>
-
         <div>
-          {!bookingId ? (
-            <div className="prep-card">
-              <h3>Ready to start?</h3>
-              <p>Book your time first. Right after, you'll get a short 2-minute questionnaire so Puja can prepare for your skin before the call.</p>
-              <p className="muted" style={{ fontSize: 13 }}>Already booked? Open the link in your confirmation email to complete your skin profile.</p>
-              <button className="btn" onClick={goBook}>Book your session — $45 →</button>
-            </div>
-          ) : (
-            <>
-              <div className="chat-card-header">
-                <h3>Step 2 of 2: Tell Puja about your skin</h3>
-                <span className="chat-progress-label">{done ? "Done" : `${Math.min(answers.length + 1, INTAKE_Q.length)} of ${INTAKE_Q.length}`}</span>
-              </div>
-              <div className="bar" style={{ marginBottom: 16 }}><i style={{ width: `${progress}%` }} /></div>
-
-              <div className="interview-chat">
-                <div className="chat-messages">
-                  {answers.map((x, i) => (
-                    <div key={i}>
-                      <div className="msg puja"><div className="msg-avatar">P</div><div className="bubble">{x.q}</div></div>
-                      <div className="msg me"><div className="msg-avatar">Y</div><div className="bubble">{x.a}</div></div>
-                    </div>
-                  ))}
-                  {showQuestion && (
-                    <div className="msg puja"><div className="msg-avatar">P</div><div className="bubble">{currentQ.q}</div></div>
-                  )}
-                  {typing && (
-                    <div className="msg puja"><div className="msg-avatar">P</div><div className="bubble"><span className="typing-dots"><span></span><span></span><span></span></span></div></div>
-                  )}
-                  {done && (
-                    <div className="msg puja"><div className="msg-avatar">P</div><div className="bubble">Thank you! I'll review this before your session. See you soon 💛</div></div>
-                  )}
-                  {error && <p style={{ color: "#b3261e", fontSize: 14 }}>{error}</p>}
-                </div>
-
-                {showQuestion && (
-                  <div>
-                    <div className="chat-opts-grid">
-                      {currentQ.opts.map((o) => <button className="chat-opt" key={o} onClick={() => answer(o)}>{o}</button>)}
-                    </div>
-                    <div className="chat-input-row">
-                      <input className="chat-input" placeholder="Or type your own answer…" value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && input.trim() && answer(input.trim())} />
-                      <button className="chat-send" onClick={() => input.trim() && answer(input.trim())}>➤</button>
-                    </div>
-                  </div>
-                )}
-
-                {error && (
-                  <button className="btn" style={{ marginTop: 12 }} onClick={() => send(answers)}>Try again</button>
-                )}
-                {done && (
-                  <button className="btn ghost" style={{ marginTop: 16, width: "100%", justifyContent: "center" }} onClick={() => navigate("/")}>Back to home</button>
-                )}
-              </div>
-            </>
-          )}
+          <div className="prep-card">
+            <h3>Ready to start?</h3>
+            <p>Book your time first. Right after, you'll get a short 2-minute questionnaire so Puja can prepare for your skin before the call.</p>
+            <p className="muted" style={{ fontSize: 13 }}>Already booked? Open the link in your confirmation email to complete your skin profile.</p>
+            <button className="btn" onClick={goBook}>Book your session, $45 →</button>
+          </div>
         </div>
       </div>
     </div>

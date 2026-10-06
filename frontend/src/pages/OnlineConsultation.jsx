@@ -14,6 +14,7 @@ const FALLBACK_SLOTS = ["10:00 AM", "11:15 AM", "12:30 PM", "02:00 PM", "03:15 P
 
 export default function OnlineConsultation() {
   const navigate = useNavigate();
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
 
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
@@ -101,7 +102,7 @@ export default function OnlineConsultation() {
         <form className="oc-card" onSubmit={handleConfirm}>
           <div className="oc-field">
             <label>Date</label>
-            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} required />
+            <input type="date" min={today} value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} required />
           </div>
 
           {isSunday ? (

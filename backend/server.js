@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import mongoose from 'mongoose';
+import rateLimit from 'express-rate-limit';
 import { initReminderCron } from './utils/reminderScheduler.js';
 import servicesRoutes from './routes/services.routes.js';
 import quizRoutes from './routes/quiz.routes.js';
@@ -9,13 +11,11 @@ import bookingRoutes from './routes/booking.routes.js';
 import consultationRoutes from './routes/consultation.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
-
 import { notFound, errorHandler } from './middleware/errorHandler.js';
-
-import mongoose from 'mongoose';
 
 dotenv.config();
 const app = express();
+app.set('trust proxy', 1);
 
 // MongoDB connection
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/kaya_spa';
@@ -36,7 +36,7 @@ app.use(cors({
     if (
       ALLOWED_ORIGINS.indexOf(origin) !== -1 ||
       /^http:\/\/localhost:\d+$/.test(origin) ||
-      /\.vercel\.app$/.test(origin) // 🟢 Saare Vercel URLs & Preview domains allow honge
+      /\.vercel\.app$/.test(origin)
     ) {
       return callback(null, true);
     }
@@ -47,6 +47,11 @@ app.use(cors({
 
 app.use(express.json());
 app.use(morgan('dev'));
+
+// Public forms par spam rokne ke liye
+const publicLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: true });
+app.post('/api/bookings', publicLimiter);
+app.post('/api/consultation', publicLimiter);
 
 app.use('/api/services', servicesRoutes);
 app.use('/api/quiz', quizRoutes);

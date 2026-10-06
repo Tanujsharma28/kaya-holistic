@@ -10,9 +10,11 @@ export default function Consultations({ consultations, bookings, onDelete }) {
   }, [consultations, q]);
 
   const bookingFor = (c) =>
-    (bookings || [])
-      .filter((b) => b.type === "consultation" && b.email?.trim().toLowerCase() === c.email?.trim().toLowerCase())
-      .sort((a, b) => b.date.localeCompare(a.date))[0];
+    c.bookingId
+      ? (bookings || []).find((b) => b.id === c.bookingId)
+      : (bookings || [])
+          .filter((b) => b.type === "consultation" && b.email?.trim().toLowerCase() === c.email?.trim().toLowerCase())
+          .sort((a, b) => b.date.localeCompare(a.date))[0];
 
   return (
     <>

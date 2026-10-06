@@ -95,7 +95,7 @@ export default function Services({ services, bookings, onSave, onCreate, onDelet
 
       <div className="adm-panel" style={{ marginTop: 18 }}>
         <h3>Add a new service</h3>
-        <div className="adm-svc" style={{ borderBottom: 0, gridTemplateColumns: "1fr 1fr 0.6fr 0.6fr 1.2fr 1.2fr auto" }}>
+        <div className="adm-svc" style={{ borderBottom: 0 }}>
           <input className="adm-in" placeholder="Service Name" value={n.name} onChange={set("name")} />
           
           <select className="adm-in" value={n.category} onChange={set("category")}>
