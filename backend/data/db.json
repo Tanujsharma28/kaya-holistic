@@ -78,57 +78,6 @@
       "desc": "One-to-one video skin assessment with Puja, from anywhere."
     }
   ],
-  "bookings": [
-    {
-      "id": "ec7e49dd-b7b1-48c1-bcf1-8bbdbf1804ec",
-      "serviceId": "virt",
-      "serviceName": "Virtual Skin Consultation",
-      "price": 45,
-      "duration": 30,
-      "type": "consultation",
-      "date": "2026-10-06",
-      "slot": "10:00 AM",
-      "name": "Tanuj Sharma",
-      "email": "ps916314@gmail.com",
-      "phone": "7906561958",
-      "note": "",
-      "addOns": [],
-      "mode": "online",
-      "meetLink": "https://meet.google.com/znp-vmub-jvz",
-      "meetLinkSent": false,
-      "reminderSent": false,
-      "status": "confirmed",
-      "createdAt": "2026-10-06T03:41:19.682Z"
-    }
-  ],
-  "consultations": [
-    {
-      "id": "b2c90ccb-22db-42d3-9b5c-323579dfb812",
-      "bookingId": "40b978f0-015f-491b-b0e3-4a55db0ee165",
-      "name": "Tanuj Sharma",
-      "email": "ps916314@gmail.com",
-      "answers": {
-        "Hi! I'm Puja. What's the main concern you'd like to address?": "Dark spots / pigmentation",
-        "How long have you been dealing with this?": "Just started noticing it",
-        "Have you tried any treatments or products for it before?": "Yes, but nothing worked well",
-        "Any skin sensitivities or allergies I should know about?": "Allergic to certain actives",
-        "Anything else you'd like me to know before your session?": "yes"
-      },
-      "createdAt": "2026-10-06T03:29:25.378Z"
-    },
-    {
-      "id": "75db764f-7f33-4719-ba6c-d5f533a0177e",
-      "bookingId": "ec7e49dd-b7b1-48c1-bcf1-8bbdbf1804ec",
-      "name": "Tanuj Sharma",
-      "email": "ps916314@gmail.com",
-      "answers": {
-        "Hi! I'm Puja. What's the main concern you'd like to address?": "Redness / sensitivity",
-        "How long have you been dealing with this?": "Over a year",
-        "Have you tried any treatments or products for it before?": "Yes, but nothing worked well",
-        "Any skin sensitivities or allergies I should know about?": "Allergic to certain actives",
-        "Anything else you'd like me to know before your session?": "ye"
-      },
-      "createdAt": "2026-10-06T03:41:34.194Z"
-    }
-  ]
+  "bookings": [],
+  "consultations": []
 }
