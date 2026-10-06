@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { submitConsultation } from "../api/client";
+import { submitConsultation, getServices } from "../api/client";
 import { useApp } from "../context/AppContext";
 
 const INTAKE_Q = [
@@ -22,6 +22,11 @@ export default function Consultation() {
   const [params] = useSearchParams();
   const bookingId = params.get("booking");
   const ref = bookingId ? bookingId.slice(0, 8).toUpperCase() : "";
+
+  const [virtPrice, setVirtPrice] = useState(45);
+  useEffect(() => {
+    getServices().then((l) => { const s = l.find((x) => x.id === "virt"); if (s) setVirtPrice(s.price); }).catch(() => {});
+  }, []);
 
   const [answers, setAnswers] = useState([]);
   const [step, setStep] = useState(0);
@@ -156,7 +161,7 @@ export default function Consultation() {
 
         <div className="consult-hero-row">
           <div className="consult-price-box">
-            <span className="consult-price-amt">$45</span>
+            <span className="consult-price-amt">${virtPrice}</span>
             <span className="consult-price-sub">30 min · video call on Google Meet</span>
           </div>
           <button className="btn" onClick={goBook}>Book your session →</button>
@@ -206,7 +211,7 @@ export default function Consultation() {
             <h3>Ready to start?</h3>
             <p>Book your time first. Right after, you'll get a short 2-minute questionnaire so Puja can prepare for your skin before the call.</p>
             <p className="muted" style={{ fontSize: 13 }}>Already booked? Open the link in your confirmation email to complete your skin profile.</p>
-            <button className="btn" onClick={goBook}>Book your session, $45 →</button>
+            <button className="btn" onClick={goBook}>Book your session, ${virtPrice} →</button>
           </div>
         </div>
       </div>

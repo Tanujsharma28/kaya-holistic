@@ -39,6 +39,7 @@ export const sendMail = async ({ to, subject, html }) => {
     const info = await transporter.sendMail({
       from: `"Kaya Holistic Spa" <${fromUser}>`,
       to: to,
+      replyTo: process.env.CLINIC_REPLY_TO || 'kayaholisticspa@gmail.com',
       subject: subject,
       html: html,
     });

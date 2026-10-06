@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { createBooking, getAvailability } from "../api/client";
+import { createBooking, getAvailability, getServices } from "../api/client";
 
-const SERVICE = {
+const DEFAULT_SERVICE = {
   id: "virt",
   name: "Virtual Skin Consultation",
   duration: "30 mins",
@@ -14,6 +14,16 @@ const FALLBACK_SLOTS = ["10:00 AM", "11:15 AM", "12:30 PM", "02:00 PM", "03:15 P
 
 export default function OnlineConsultation() {
   const navigate = useNavigate();
+  const [SERVICE, setService] = useState({ ...DEFAULT_SERVICE, active: true });
+  useEffect(() => {
+    getServices()
+      .then((list) => {
+        const s = list.find((x) => x.id === "virt");
+        if (s) setService({ ...DEFAULT_SERVICE, name: s.name, duration: `${s.duration} mins`, price: `$${s.price}`, active: s.active !== false });
+      })
+      .catch(() => {});
+  }, []);
+
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
 
   const [selectedDate, setSelectedDate] = useState("");
@@ -79,11 +89,24 @@ export default function OnlineConsultation() {
           <div className="oc-success-icon">✓</div>
           <h2>Online Consultation Booked</h2>
           <p>
-            Thanks, <b>{details.name}</b>! Your 30-min video consultation is set for <b>{selectedDate}</b> at{" "}
+            Thanks, <b>{details.name}</b>! Your {SERVICE.duration} video consultation is set for <b>{selectedDate}</b> at{" "}
             <b>{selectedTime}</b>. We've emailed your Google Meet link and details to <b>{details.email}</b> — check
             your inbox (and spam folder, just in case).
           </p>
           <button className="oc-btn" onClick={() => navigate("/")}>Return to Home</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (SERVICE.active === false) {
+    return (
+      <div className="view oc-wrap">
+        <style>{OC_CSS}</style>
+        <div className="oc-success-card">
+          <h2>Online consultations are paused</h2>
+          <p>We're not taking online bookings right now. Please call <b>847-571-1910</b> and we'll be happy to help.</p>
+          <button className="oc-btn" onClick={() => navigate("/")}>Back to home</button>
         </div>
       </div>
     );

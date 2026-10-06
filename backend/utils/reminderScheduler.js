@@ -29,10 +29,18 @@ export const initReminderCron = () => {
         const diff = start - nowMin;
         // 30 min pehle se session khatam hone tak (server down tha to bhi catch-up)
         if (diff > LEAD_MIN || diff < -dur) continue;
+        // Abhi-abhi book hui hai aur link confirmation email mein ja chuka hai: reminder skip
+        if (b.meetLink && Date.now() - new Date(b.createdAt).getTime() < 10 * 60 * 1000) {
+          b.reminderSent = true;
+          await db.write();
+          continue;
+        }
 
         if (!b.meetLink) {
           try {
-            b.meetLink = await createMeetEvent({ ...b, duration: dur });
+                      const ev = await createMeetEvent({ ...b, duration: dur });
+            b.meetLink = ev.link;
+            b.calendarEventId = ev.eventId;
           } catch (err) {
             console.error('Meet link retry failed:', err.message);
             b.meetLink = process.env.GOOGLE_MEET_LINK || '';

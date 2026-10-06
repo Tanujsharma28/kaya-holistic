@@ -24,6 +24,7 @@ export default function BookingDrawer({ booking: b, consultations, onClose, onPa
   const moved = date !== b.date || (time && from24(time) !== b.slot);
 
   const run = async (fn) => { setBusy(true); try { return await fn(); } finally { setBusy(false); } };
+  const mailNote = (r) => (!notify || !b.email ? "" : r?.emailed === false ? " Email could not be sent." : " Client notified by email.");
   const isVideo = b.mode === "virtual" || b.mode === "online" || (b.type || "").includes("consult");
 
   // Show a professional success overlay, then close
@@ -44,7 +45,7 @@ export default function BookingDrawer({ booking: b, consultations, onClose, onPa
       const r = await onPatch(b.id, { status, notify });
       if (r === null) return r; // error handled by dashboard toast
       if (status === "cancelled") {
-        showSuccess("Appointment cancelled." + (notify && b.email ? " Client notified by email." : ""), "❌");
+        showSuccess("Appointment cancelled." + mailNote(r), "❌");
       } else if (status === "completed") {
         showSuccess("Appointment marked as completed!", "🎉");
       } else if (status === "no-show") {
@@ -63,7 +64,7 @@ export default function BookingDrawer({ booking: b, consultations, onClose, onPa
       const newDateFmt = new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
       const newTime = from24(time);
       showSuccess(
-        `Appointment moved to ${newDateFmt} at ${newTime}.${notify && b.email ? " Client notified by email." : ""}`,
+        `Appointment moved to ${newDateFmt} at ${newTime}.${mailNote(r)}`,
         "📅"
       );
       return r;
@@ -74,7 +75,7 @@ export default function BookingDrawer({ booking: b, consultations, onClose, onPa
     run(async () => {
       const r = await onPatch(b.id, { meetLink: meet.trim(), notify });
       if (r === null) return r; // error handled by dashboard toast
-      showSuccess("Meet link saved and emailed to client.", "🎥");
+      showSuccess("Meet link saved." + mailNote(r), "🎥");
       return r;
     });
   };

@@ -3,8 +3,9 @@ import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
 import { db } from '../config/db.js';
-import { hasConflict, durationOf, typeOf, toMinutes } from '../utils/slots.js';
+import { hasConflict, durationOf, typeOf, toMinutes, isPast } from '../utils/slots.js';
 import { sendMail } from '../utils/mailer.js';
+import { createMeetEvent, updateMeetEvent, deleteMeetEvent } from '../utils/googleMeet.js';
 import { rescheduleEmail, cancellationEmail, meetLinkEmail, bookingConfirmationEmail } from '../utils/adminEmails.js';
 const MEET_RE = /^https?:\/\/[^\s]+$/i;
 
@@ -145,6 +146,7 @@ export const updateBooking = async (req, res) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate) || Number.isNaN(dt.getTime())) return bad(res, 'Invalid date');
     if (dt.getDay() === 0) return bad(res, 'The spa is closed on Sundays');
     if (toMinutes(newSlot) === null) return bad(res, 'Invalid time');
+    if (moved && isPast(newDate, newSlot)) return bad(res, 'That time has already passed');
   }
 
   const reactivating = b.status === 'cancelled' && nextStatus !== 'cancelled';
@@ -166,6 +168,25 @@ export const updateBooking = async (req, res) => {
   b.updatedAt = new Date().toISOString();
   await db.write();
 
+  // Google Calendar ko sync rakho (cancel / reschedule / restore)
+  try {
+    const nowCancelled = b.status === 'cancelled';
+    if (nowCancelled && prev.status !== 'cancelled' && b.calendarEventId) {
+      await deleteMeetEvent(b.calendarEventId);
+      b.calendarEventId = '';
+    } else if (!nowCancelled && moved && b.calendarEventId) {
+      await updateMeetEvent({ ...b, duration: durationOf(db.data, b) });
+    } else if (!nowCancelled && reactivating && isVideo(b) && !b.calendarEventId) {
+      const ev = await createMeetEvent({ ...b, duration: durationOf(db.data, b) });
+      b.meetLink = ev.link;
+      b.calendarEventId = ev.eventId;
+      b.reminderSent = false;
+    }
+    await db.write();
+  } catch (e) {
+    console.error('Calendar sync failed:', e.message);
+  }
+
   let emailed = null;
   if (notify && b.email) {
     if (b.status === 'cancelled' && prev.status !== 'cancelled') {
@@ -184,18 +205,26 @@ export const updateBooking = async (req, res) => {
 export const deleteBooking = async (req, res) => {
   const idx = db.data.bookings.findIndex((b) => b.id === req.params.id);
   if (idx === -1) return bad(res, 'Booking not found', 404);
-  db.data.bookings.splice(idx, 1);
+  const [removed] = db.data.bookings.splice(idx, 1);
+  db.data.consultations = db.data.consultations.filter((c) => c.bookingId !== removed.id);
   await db.write();
+  if (removed.calendarEventId) {
+    deleteMeetEvent(removed.calendarEventId).catch((e) => console.error('Calendar delete failed:', e.message));
+  }
   res.json({ success: true, message: 'Booking deleted' });
 };
 
 export const bulkDeleteBookings = async (req, res) => {
   const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
   if (!ids.length) return bad(res, 'No bookings selected');
-  const before = db.data.bookings.length;
+  const removed = db.data.bookings.filter((b) => ids.includes(b.id));
   db.data.bookings = db.data.bookings.filter((b) => !ids.includes(b.id));
+  db.data.consultations = db.data.consultations.filter((c) => !ids.includes(c.bookingId));
   await db.write();
-  res.json({ success: true, deleted: before - db.data.bookings.length });
+  removed.forEach((b) => {
+    if (b.calendarEventId) deleteMeetEvent(b.calendarEventId).catch((e) => console.error('Calendar delete failed:', e.message));
+  });
+  res.json({ success: true, deleted: removed.length });
 };
 
 export const deleteConsultation = async (req, res) => {
@@ -249,7 +278,6 @@ export const createService = async (req, res) => {
 };
 
 export const updateService = async (req, res) => {
-  if (req.params.id === 'virt' && req.body?.active === false) return bad(res, 'The online consultation service cannot be turned off.');
   const s = db.data.services.find((x) => x.id === req.params.id);
   if (!s) return bad(res, 'Service not found', 404);
   const { error, value } = parseService(req.body || {}, s);

@@ -186,12 +186,14 @@ export const createBooking = async (req, res) => {
   };
 
   // Slot pehle lock karo (double booking se bachne ke liye), phir link banao
-  db.data.bookings.push(booking);
+  db.data.bookings  .push(booking);
   await db.write();
 
   if (isOnline && !booking.meetLink) {
     try {
-      booking.meetLink = await createMeetEvent(booking);
+           const ev = await createMeetEvent(booking);
+      booking.meetLink = ev.link;
+      booking.calendarEventId = ev.eventId;
       await db.write();
     } catch (err) {
       console.error('Meet link booking ke time nahi bana, cron retry karega:', err.message);

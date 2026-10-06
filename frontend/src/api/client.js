@@ -5,7 +5,16 @@ const client = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-export const getServices = () => client.get("/services").then(r => r.data.data);
+const SVC_KEY = "kaya_services_cache";
+export const getCachedServices = () => {
+  try { return JSON.parse(localStorage.getItem(SVC_KEY)) || []; } catch { return []; }
+};
+export const getServices = () =>
+  client.get("/services", { timeout: 90000 }).then((r) => {
+    const d = r.data.data;
+    try { localStorage.setItem(SVC_KEY, JSON.stringify(d)); } catch { /* ignore */ }
+    return d;
+  });
 export const getQuizQuestions = () => client.get("/quiz").then(r => r.data.data);
 export const getAvailability = (date) => client.get(`/bookings/availability?date=${date}`).then(r => r.data.data);
 export const createBooking = (payload) => client.post("/bookings", payload).then(r => r.data.data);

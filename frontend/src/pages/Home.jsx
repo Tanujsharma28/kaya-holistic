@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { getServices } from "../api/client";
+import { getServices, getCachedServices } from "../api/client";
 import ServiceCard from "../components/ServiceCard";
 import Testimonials from "../components/Testimonials";
 import Gallery from "../components/Gallery";
@@ -91,12 +91,12 @@ function ServicesCarousel({ services = [] }) {
 
 
 export default function Home() {
-  const [services, setServices] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [services, setServices] = useState(getCachedServices());
+  const [loading, setLoading] = useState(getCachedServices().length === 0);
   const navigate = useNavigate();
 
   useEffect(() => {
-    getServices().then(setServices).finally(() => setLoading(false));
+    getServices().then(setServices).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   return (
