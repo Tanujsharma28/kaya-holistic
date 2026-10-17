@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getServices, getQuizMap } from '../api/client';
 import { useApp } from '../context/AppContext';
 
 // ─── Recommendation Engine ────────────────────────────────────────────────────
@@ -63,10 +65,10 @@ const ROUTINE_MAP = {
 };
 
 const FACIAL_MAP = {
-  cleansing:    { name: 'Deep Pore Purifying Ritual',       duration: '75 min', price: '$95',  desc: 'Intensive steam extraction, enzymatic exfoliation, and activated charcoal mask for a fully detoxed, clarified complexion.',              badge: 'Best for Oily & Acne-Prone' },
-  'aging-facial': { name: 'Rejuvenating Collagen Lift Facial', duration: '90 min', price: '$135', desc: 'Micro-current lifting, collagen peptide infusion, and a firming botanical mask. Visibly tightens and restores youthful radiance.',        badge: 'Best for Anti-Aging' },
-  soothing:     { name: 'Calming Botanical Healing Facial', duration: '60 min', price: '$85',  desc: 'Gentle barrier repair using chamomile, centella asiatica, and oat extracts. Designed for sensitive, reactive, or redness-prone skin.', badge: 'Best for Sensitive Skin' },
-  signature:    { name: 'Kaya Signature Holistic Glow',     duration: '90 min', price: '$120', desc: 'Our iconic all-in-one custom facial tailored by Puja or Sia. Combines cleansing, exfoliation, targeted treatment, and a face massage.',  badge: 'Most Popular' },
+  cleansing:    { name: 'Deep Pore Purifying Facial',            duration: '75 min', price: '$95',  desc: 'Intensive steam extraction, enzymatic exfoliation, and activated charcoal mask for a fully detoxed, clarified complexion.',              badge: 'Best for Oily & Acne-Prone' },
+  'aging-facial': { name: 'Lymphatic Drainage Massage Facial',  duration: '90 min', price: '$130', desc: 'Micro-current lifting, collagen peptide infusion, and a firming botanical mask. Visibly tightens and restores youthful radiance.',        badge: 'Best for Anti-Aging' },
+  soothing:     { name: 'Rosacea Facial',                        duration: '60 min', price: '$120', desc: 'Gentle barrier repair using chamomile, centella asiatica, and oat extracts. Designed for sensitive, reactive, or redness-prone skin.', badge: 'Best for Sensitive Skin' },
+  signature:    { name: 'Kaya Signature Holistic Glow',          duration: '90 min', price: '$85',  desc: 'Our iconic all-in-one custom facial tailored by Puja or Sia. Combines cleansing, exfoliation, targeted treatment, and a face massage.',  badge: 'Most Popular' },
 };
 
 const CONCERN_FACIAL_FALLBACK = {
@@ -133,13 +135,38 @@ function buildResult(answers) {
   const scoreBase = { high: 62, medium: 78, low: 91 }[sens] || 75;
   const skinScore = Math.min(98, scoreBase + (stress === 'low' ? 8 : stress === 'high' ? -6 : 0));
 
-  return { skin, concern, sens, env, stress, routine, ingredients, skinRoutine, facial, products, skinProfile, concernData, envTip, stressTip, skinScore };
+  return { facialKey, skin, concern, sens, env, stress, routine, ingredients, skinRoutine, facial, products, skinProfile, concernData, envTip, stressTip, skinScore };
+}
+
+// Admin ne jo service is quiz result se jodi hai, uska naam/price/time/description use karo.
+// Server na chale ya service hidden ho to upar ka default text hi dikhega.
+function withLiveFacial(r, live) {
+  const svc = live?.services?.find((s) => s.id === live.quizMap?.[r.facialKey]);
+  if (!svc) return r;
+  return {
+    ...r,
+    facial: {
+      ...r.facial,
+      name: svc.name,
+      duration: `${svc.duration} min`,
+      price: `$${svc.price}`,
+      desc: svc.desc || r.facial.desc,
+    },
+  };
 }
 
 export default function Result() {
   const navigate = useNavigate();
   const { quizAnswers } = useApp();
-  const r = buildResult(quizAnswers || {});
+  const [live, setLive] = useState(null);
+
+  useEffect(() => {
+    Promise.all([getServices(), getQuizMap()])
+      .then(([services, quizMap]) => setLive({ services, quizMap }))
+      .catch(() => {});
+  }, []);
+
+  const r = withLiveFacial(buildResult(quizAnswers || {}), live);
 
   return (
     <div className="res-page">

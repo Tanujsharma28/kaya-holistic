@@ -94,10 +94,16 @@ export default function Home() {
   const [services, setServices] = useState(getCachedServices());
   const [loading, setLoading] = useState(getCachedServices().length === 0);
   const navigate = useNavigate();
+  const [cat, setCat] = useState("All");
 
   useEffect(() => {
     getServices().then(setServices).catch(() => {}).finally(() => setLoading(false));
   }, []);
+
+  const catOf = (s) => s.category || "Facials";
+  const categories = ["All", ...Array.from(new Set(services.map(catOf)))];
+  const filtered = cat === "All" ? services : services.filter((s) => catOf(s) === cat);
+  const shown = filtered.length ? filtered : services;
 
   return (
     <div className="view">
@@ -134,7 +140,25 @@ export default function Home() {
         <p>Loading services…</p>
       </div>
     ) : (
-      <ServicesCarousel services={services} />
+      <>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", margin: "0 0 18px" }}>
+          {categories.map((c) => (
+            <button
+              key={c}
+              onClick={() => setCat(c)}
+              style={{
+                padding: "7px 16px", borderRadius: 99, cursor: "pointer", fontSize: ".85rem", fontFamily: "inherit",
+                border: "1.5px solid #a67c52",
+                background: cat === c ? "#a67c52" : "transparent",
+                color: cat === c ? "#fff" : "#7c5c38", fontWeight: 600,
+              }}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+        <ServicesCarousel key={cat} services={shown} />
+      </>
     )}
   </section>
 </Reveal>

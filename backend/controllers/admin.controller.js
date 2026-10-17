@@ -245,7 +245,11 @@ const parseService = (body, base = {}) => {
     if (!n || n.length > 80) return { error: 'Name is required (max 80 characters)' };
     out.name = n;
   }
-  if (body.category !== undefined) out.category = String(body.category).trim();
+   if (body.category !== undefined) {
+    const c = String(body.category).trim();
+    if (!c || c.length > 40) return { error: 'Category is required (max 40 characters)' };
+    out.category = c;
+  }
   if (body.image !== undefined) out.image = String(body.image).trim();
   if (body.imageUrl !== undefined) out.imageUrl = String(body.imageUrl).trim();
   if (body.desc !== undefined) out.desc = String(body.desc).trim().slice(0, 500);
@@ -291,11 +295,35 @@ export const updateService = async (req, res) => {
 
 export const deleteService = async (req, res) => {
   if (req.params.id === 'virt') return bad(res, 'The online consultation service cannot be deleted.');
+    if (Object.values(db.data.settings?.quizMap || {}).includes(req.params.id)) {
+    return bad(res, 'This service is used by a Skin Quiz result. Choose a different service for that result first (Services tab, Skin Quiz results).');
+  }
   const idx = db.data.services.findIndex((s) => s.id === req.params.id);
   if (idx === -1) return bad(res, 'Service not found', 404);
   db.data.services.splice(idx, 1);
   await db.write();
   res.json({ success: true, message: 'Service deleted successfully' });
+};
+// Skin Quiz results: kaunsa quiz result kaunsi service dikhaye
+const QUIZ_KEYS = ['cleansing', 'aging-facial', 'soothing', 'signature'];
+
+export const getQuizMapAdmin = (req, res) =>
+  res.json({ success: true, data: db.data.settings?.quizMap || {} });
+
+export const updateQuizMap = async (req, res) => {
+  const map = req.body?.map;
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return bad(res, 'Invalid data');
+  const next = { ...(db.data.settings.quizMap || {}) };
+  for (const [key, id] of Object.entries(map)) {
+    if (!QUIZ_KEYS.includes(key)) return bad(res, `Unknown quiz result: ${key}`);
+    const svc = db.data.services.find((s) => s.id === id);
+    if (!svc || svc.id === 'virt') return bad(res, 'Please choose a valid service');
+    if (svc.active === false) return bad(res, `"${svc.name}" is hidden (not bookable). Make it bookable first.`);
+    next[key] = id;
+  }
+  db.data.settings.quizMap = next;
+  await db.write();
+  res.json({ success: true, data: next });
 };
 
 // Booking Approve route

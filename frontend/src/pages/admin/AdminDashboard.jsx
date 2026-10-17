@@ -37,10 +37,10 @@ export default function AdminDashboard() {
 
   const load = useCallback(async (silent) => {
     try {
-      const [stats, bookings, consultations, services] = await Promise.all([
-        api.getStats(), api.getAllBookings(), api.getAllConsultations(), api.getServicesAdmin(),
+      const [stats, bookings, consultations, services, quizMap] = await Promise.all([
+        api.getStats(), api.getAllBookings(), api.getAllConsultations(), api.getServicesAdmin(), api.getQuizMapAdmin(),
       ]);
-      setData({ stats, bookings, consultations, services });
+      setData({ stats, bookings, consultations, services, quizMap });
       setPhase("ready");
     } catch {
       if (!silent) setPhase("error");
@@ -76,6 +76,7 @@ export default function AdminDashboard() {
   const onSaveService = (id, body) => run(() => api.updateService(id, body), "Service saved");
   const onCreateService = (body) => run(() => api.createService(body), "Service added");
   const onDeleteService = (id) => run(() => api.deleteService(id), "Service deleted");
+  const onSaveQuizMap = (map) => run(() => api.saveQuizMap(map), "Skin Quiz results saved");
 
   const go = (t, p = "all") => { setPreset(p); setTab(t); setOpenId(null); window.scrollTo(0, 0); };
   const doLogout = () => { logout(); navigate("/admin/login"); };
@@ -135,7 +136,7 @@ export default function AdminDashboard() {
               <Consultations consultations={data.consultations} bookings={data.bookings} onDelete={onDeleteConsult} />
             )}
             {tab === "services" && (
-              <Services services={data.services} bookings={data.bookings} onSave={onSaveService} onCreate={onCreateService} onDelete={onDeleteService} />
+              <Services services={data.services} bookings={data.bookings} quizMap={data.quizMap} onSave={onSaveService} onCreate={onCreateService} onDelete={onDeleteService} onSaveQuizMap={onSaveQuizMap} />
             )}
           </>
         )}

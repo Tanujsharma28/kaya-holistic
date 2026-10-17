@@ -13,16 +13,25 @@ const file = process.env.DB_FILE
 
 fs.mkdirSync(path.dirname(file), { recursive: true });
 
-// Pehli baar chalne par services seed.json se aati hain
-let seedServices = [];
+// Pehli baar chalne par services aur quiz settings seed.json se aati hain
+let seed = {};
 try {
-  seedServices = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'seed.json'), 'utf8')).services || [];
+  seed = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'seed.json'), 'utf8'));
 } catch { /* seed optional */ }
 
-const defaultData = { services: seedServices, bookings: [], consultations: [] };
+const defaultQuizMap = seed.settings?.quizMap || {};
+const defaultData = {
+  services: seed.services || [],
+  bookings: [],
+  consultations: [],
+  settings: { quizMap: { ...defaultQuizMap } },
+};
 
 export const db = await JSONFilePreset(file, defaultData);
 db.data.services ||= [];
 db.data.bookings ||= [];
 db.data.consultations ||= [];
+db.data.settings ||= {};
+// Purani database file me quizMap na ho to defaults se bhar do
+db.data.settings.quizMap = { ...defaultQuizMap, ...(db.data.settings.quizMap || {}) };
 console.log(`🗄️  Database file: ${file}`);

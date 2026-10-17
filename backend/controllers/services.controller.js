@@ -9,3 +9,6 @@ export const getServiceById = (req, res) => {
   if (!service) return res.status(404).json({ success: false, message: 'Service not found' });
   res.json({ success: true, data: service });
 };
+export const getQuizMap = (req, res) => {
+  res.json({ success: true, data: db.data.settings?.quizMap || {} });
+};

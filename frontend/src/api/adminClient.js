@@ -35,6 +35,9 @@ export const getAllBookings = () => adminClient.get("/admin/bookings").then((r) 
 export const getAllConsultations = () => adminClient.get("/admin/consultations").then((r) => r.data.data);
 export const getServicesAdmin = () => adminClient.get("/admin/services").then((r) => r.data.data);
 
+export const getQuizMapAdmin = () => adminClient.get("/admin/quiz-map").then((r) => r.data.data);
+export const saveQuizMap = (map) => adminClient.put("/admin/quiz-map", { map }).then((r) => r.data);
+
 export const updateBooking = (id, body) => adminClient.patch(`/admin/bookings/${id}`, body).then((r) => r.data);
 export const approveBooking = (id, meetLink) => adminClient.patch(`/admin/bookings/${id}/approve`, { meetLink }).then((r) => r.data);
 export const deleteBookings = (ids) => adminClient.post("/admin/bookings/bulk-delete", { ids }).then((r) => r.data);

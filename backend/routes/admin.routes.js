@@ -4,7 +4,8 @@ import { asyncHandler as h } from '../middleware/errorHandler.js';
 import {
   login, getAllBookingsAdmin, getAllConsultationsAdmin, getDashboardStats,
   updateBooking, deleteBooking, bulkDeleteBookings, deleteConsultation,
-  getServicesAdmin, createService, updateService, deleteService, approveBooking
+  getServicesAdmin, createService, updateService, deleteService, approveBooking,
+  getQuizMapAdmin, updateQuizMap
 } from '../controllers/admin.controller.js';
 
 const router = Router();
@@ -20,6 +21,8 @@ router.patch('/bookings/:id', h(updateBooking));
 router.delete('/bookings/:id', h(deleteBooking));
 router.get('/consultations', h(getAllConsultationsAdmin));
 router.delete('/consultations/:id', h(deleteConsultation));
+router.get('/quiz-map', h(getQuizMapAdmin));
+router.put('/quiz-map', h(updateQuizMap));
 router.get('/services', h(getServicesAdmin));
 router.post('/services', h(createService));
 router.patch('/services/:id', h(updateService));

@@ -15,6 +15,7 @@ export const getServices = () =>
     try { localStorage.setItem(SVC_KEY, JSON.stringify(d)); } catch { /* ignore */ }
     return d;
   });
+export const getQuizMap = () => client.get("/services/quiz-map").then((r) => r.data.data);
 export const getQuizQuestions = () => client.get("/quiz").then(r => r.data.data);
 export const getAvailability = (date, serviceId) =>
   client.get('/bookings/availability', { params: { date, serviceId } }).then(r => r.data.data);

@@ -62,6 +62,12 @@ const SERVICE_META = {
     desc: "Precision facial waxing using low-temperature stripless wax — gentle even on sensitive skin.",
     tag: null,
   },
+  signature: { icon: "✨", tagline: "Tailored by Puja or Sia", tag: "Most Popular" },
+  lymph:     { icon: "💆", tagline: "Lift · sculpt · de-puff", tag: null },
+  purify:    { icon: "💧", tagline: "Deep clarity for clear skin", tag: null },
+  clear:     { icon: "🍃", tagline: "Calm breakouts, clear congestion", tag: null },
+  rosacea:   { icon: "🌿", tagline: "Soothe redness & sensitivity", tag: null },
+  corrective:{ icon: "💡", tagline: "LED light therapy", tag: null },
   virt:    {
     icon: "🖥️",
     tagline: "Expert skin advice, anywhere",
@@ -91,7 +97,7 @@ export default function ServiceCard({ service }) {
       </div>
       <h4 className="svc-card-name">{service.name}</h4>
       <p className="svc-card-tagline">{meta.tagline}</p>
-      <p className="svc-card-desc">{meta.desc}</p>
+      <p className="svc-card-desc">{service.desc || meta.desc}</p>
       <div className="svc-card-footer">
         <span className="svc-card-price">${service.price}</span>
         <button className="svc-card-btn">Book now →</button>
