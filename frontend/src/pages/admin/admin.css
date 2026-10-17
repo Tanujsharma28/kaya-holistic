@@ -388,8 +388,8 @@ textarea.adm-in { min-height: 90px; resize: vertical; }
   border-bottom: 1px solid #f3ece1;
   vertical-align: middle;
 }
-.adm-table tr.row { cursor: pointer; transition: background .15s; }
-.adm-table tr.row:hover td { background: #faf4eb; }
+.adm-table tr.adm-tr { cursor: pointer; transition: background .15s; }
+.adm-table tr.adm-tr:hover td { background: #faf4eb; }
 .adm-pager {
   display: flex;
   justify-content: space-between;

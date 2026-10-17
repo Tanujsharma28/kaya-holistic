@@ -123,7 +123,7 @@ export default function Bookings({ bookings = [], initialStatus = "all", open, o
                 const bStatus = norm(b.status);
                 const isLive = bStatus === "confirmed" || bStatus === "approved";
                 return (
-                  <tr className="row" key={b.id} onClick={() => open(b.id)}>
+                  <tr className="adm-tr" key={b.id} onClick={() => open(b.id)}>
                     <td onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={sel.has(b.id)} onChange={() => toggle(b.id)} aria-label={`Select ${b.name}`} />
                     </td>
