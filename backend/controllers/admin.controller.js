@@ -125,6 +125,9 @@ export const updateBooking = async (req, res) => {
   if (!b) return bad(res, 'Booking not found', 404);
 
   const { adminNote, date, slot, meetLink, notify = true } = req.body || {};
+  if ((date !== undefined && typeof date !== 'string') || (slot !== undefined && typeof slot !== 'string')) {
+    return bad(res, 'Invalid date or time');
+  }
   const status = normStatus(req.body?.status);
   if (status !== undefined && !STATUSES.includes(status)) return bad(res, 'Invalid status');
   if (adminNote !== undefined && typeof adminNote !== 'string') return bad(res, 'Invalid note');

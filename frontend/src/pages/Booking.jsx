@@ -108,7 +108,7 @@ const Booking = () => {
         }
 
         /* SETMORE IFRAME CARD */
-        .iframe-card Shell {
+        .iframe-card {
           background: #FFFFFF;
           border-radius: 24px;
           border: 1px solid #E6DDD0;
@@ -319,7 +319,7 @@ const Booking = () => {
         </div>
 
         {/* SETMORE IFRAME CARD */}
-        <div className="iframe-card Shell">
+        <div className="iframe-card">
           <div className="iframe-header-bar">
             <div className="iframe-header-left">
               <span>🌿 Kaya Holistic Spa — Appointment Calendar</span>

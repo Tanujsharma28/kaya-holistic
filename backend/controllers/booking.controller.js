@@ -151,6 +151,11 @@ export const createBooking = async (req, res) => {
   if (!serviceId || !date || !slot || !name || !email) {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
   }
+  const isStr = (v) => typeof v === 'string';
+  if (![serviceId, date, slot, name, email].every(isStr)
+    || [phone, note, mode, videoLink, type].some((v) => v !== undefined && v !== null && !isStr(v))) {
+    return res.status(400).json({ success: false, message: 'Invalid input' });
+  }
   if (!EMAIL_RE.test(String(email).trim())) {
     return res.status(400).json({ success: false, message: 'Please enter a valid email' });
   }
