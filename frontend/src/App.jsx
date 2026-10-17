@@ -27,6 +27,13 @@ function PublicSite() {
           <Route path="/booking" element={<Booking />} />
           <Route path="/online-consultation" element={<OnlineConsultation />} />
           <Route path="/confirmation" element={<Confirmation />} />
+                    <Route path="*" element={
+            <div style={{ textAlign: "center", padding: "160px 20px 100px" }}>
+              <h1 style={{ fontFamily: "Fraunces, Georgia, serif", fontWeight: 400 }}>Page not found</h1>
+              <p>The page you are looking for does not exist.</p>
+              <a href="/" style={{ color: "#a67c52", fontWeight: 600 }}>Back to home</a>
+            </div>
+          } />
         </Routes>
       </main>
       <Footer />

@@ -1,9 +1,14 @@
-import React, { useState } from 'react';
+   import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const Booking = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+     // Agar iframe ka load event na aaye (slow network ya blocked), to spinner hamesha na rahe
+   useEffect(() => {
+     const t = setTimeout(() => setLoading(false), 10000);
+     return () => clearTimeout(t);
+   }, []);
 
   const SETMORE_URL = "https://kayaholisticspa.setmore.com";
 
@@ -319,6 +324,7 @@ const Booking = () => {
             <div className="iframe-header-left">
               <span>🌿 Kaya Holistic Spa — Appointment Calendar</span>
             </div>
+            <a href={SETMORE_URL} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", fontSize: ".85rem", textDecoration: "underline" }}>Open in new tab</a>
             <div className="iframe-header-badge">
               <span className="live-dot" />
               Live Availability
@@ -352,7 +358,7 @@ const Booking = () => {
             <p>
               <strong>Kaya Holistic Spa</strong><br />
               1567 Sherman Avenue, Evanston, IL 60201<br />
-              Mon – Sat: 9:00 AM – 7:00 PM<br />
+              Mon – Sat: 10:00 AM – 6:00 PM<br />
               Direct Line: (847) 571-1910
             </p>
           </div>

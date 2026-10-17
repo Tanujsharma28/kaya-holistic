@@ -11,6 +11,18 @@ const esc = (s = '') =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // ─── Slots: 10 AM to 6 PM, 45 min gaps, Mon to Sat ───
+const buildSlotLabels = () => {
+  const out = [];
+  let hour = 10, min = 0;
+  while (hour < 18) {
+    out.push(`${hour > 12 ? hour - 12 : hour}:${min === 0 ? '00' : min} ${hour >= 12 ? 'PM' : 'AM'}`);
+    min += 45;
+    if (min >= 60) { min -= 60; hour++; }
+  }
+  return out;
+};
+const SLOT_LABELS = buildSlotLabels();
+const normSlot = (s) => String(s).trim().toUpperCase().replace(/^0/, '').replace(/\s+/g, ' ');
 export const getAvailability = (req, res) => {
   const { date } = req.query;
   if (!date) return res.status(400).json({ success: false, message: 'date query required' });
@@ -148,8 +160,8 @@ export const createBooking = async (req, res) => {
   if (new Date(date + 'T12:00:00').getDay() === 0) {
     return res.status(400).json({ success: false, message: 'The spa is closed on Sundays' });
   }
-  if (toMinutes(slot) === null) {
-    return res.status(400).json({ success: false, message: 'Invalid time' });
+    if (toMinutes(slot) === null || !SLOT_LABELS.some((l) => normSlot(l) === normSlot(slot))) {
+    return res.status(400).json({ success: false, message: 'Please choose one of the available time slots' });
   }
   if (isPast(date, slot)) {
     return res.status(400).json({ success: false, message: 'That time has already passed. Please pick a later slot.' });

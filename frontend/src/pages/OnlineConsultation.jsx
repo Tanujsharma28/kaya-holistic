@@ -10,7 +10,7 @@ const DEFAULT_SERVICE = {
   desc: "1-on-1 video skin assessment with Puja, over Google Meet.",
 };
 
-const FALLBACK_SLOTS = ["10:00 AM", "11:15 AM", "12:30 PM", "02:00 PM", "03:15 PM", "04:30 PM", "05:15 PM"];
+const FALLBACK_SLOTS = ["10:00 AM", "10:45 AM", "11:30 AM", "12:15 PM", "1:00 PM", "1:45 PM", "2:30 PM", "3:15 PM", "4:00 PM", "4:45 PM", "5:30 PM"];
 
 export default function OnlineConsultation() {
   const navigate = useNavigate();
