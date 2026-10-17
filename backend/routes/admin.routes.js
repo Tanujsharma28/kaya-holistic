@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { verifyAdmin, verifyAdmin as protect } from '../middleware/auth.middleware.js';
+import { verifyAdmin } from '../middleware/auth.middleware.js';
+import { asyncHandler as h } from '../middleware/errorHandler.js';
 import {
   login, getAllBookingsAdmin, getAllConsultationsAdmin, getDashboardStats,
   updateBooking, deleteBooking, bulkDeleteBookings, deleteConsultation,
@@ -8,18 +9,20 @@ import {
 
 const router = Router();
 
-router.post('/login', login);
-router.get('/stats', protect, getDashboardStats);
-router.get('/bookings', protect, getAllBookingsAdmin);
-router.post('/bookings/bulk-delete', protect, bulkDeleteBookings);
-router.patch('/bookings/:id/approve', verifyAdmin, approveBooking);
-router.patch('/bookings/:id', protect, updateBooking);
-router.delete('/bookings/:id', protect, deleteBooking);
-router.get('/consultations', protect, getAllConsultationsAdmin);
-router.delete('/consultations/:id', protect, deleteConsultation);
-router.get('/services', protect, getServicesAdmin);
-router.post('/services', protect, createService);
-router.patch('/services/:id', protect, updateService);
-router.delete('/services/:id', protect, deleteService);
+router.post('/login', h(login));
+router.use(verifyAdmin); // iske neeche sab routes admin token maangte hain
+
+router.get('/stats', h(getDashboardStats));
+router.get('/bookings', h(getAllBookingsAdmin));
+router.post('/bookings/bulk-delete', h(bulkDeleteBookings));
+router.patch('/bookings/:id/approve', h(approveBooking));
+router.patch('/bookings/:id', h(updateBooking));
+router.delete('/bookings/:id', h(deleteBooking));
+router.get('/consultations', h(getAllConsultationsAdmin));
+router.delete('/consultations/:id', h(deleteConsultation));
+router.get('/services', h(getServicesAdmin));
+router.post('/services', h(createService));
+router.patch('/services/:id', h(updateService));
+router.delete('/services/:id', h(deleteService));
 
 export default router;

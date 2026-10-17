@@ -10,9 +10,20 @@ export const submitConsultation = async (req, res) => {
   const { bookingId, answers } = req.body || {};
   let { name, email } = req.body || {};
 
-  if (!answers || typeof answers !== 'object') {
+    if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
     return res.status(400).json({ success: false, message: 'Missing answers' });
   }
+  const entries = Object.entries(answers);
+  if (entries.length === 0 || entries.length > 40) {
+    return res.status(400).json({ success: false, message: 'Invalid answers' });
+  }
+  // Sirf text rakho, length limit ke saath
+  const cleanAnswers = Object.fromEntries(
+    entries.map(([q, a]) => [
+      String(q).slice(0, 200),
+      Array.isArray(a) ? a.map((x) => String(x)).join(', ').slice(0, 2000) : String(a ?? '').slice(0, 2000),
+    ])
+  );
 
   let booking = null;
   if (bookingId) {
@@ -31,7 +42,7 @@ export const submitConsultation = async (req, res) => {
     bookingId: booking?.id || null,
     name: String(name).trim().slice(0, 100),
     email: String(email).trim(),
-    answers,
+    answers: cleanAnswers,
     createdAt: new Date().toISOString(),
   };
 
@@ -43,7 +54,7 @@ export const submitConsultation = async (req, res) => {
   await db.write();
 
   const when = booking ? `${booking.date} at ${booking.slot} (Central Time)` : 'Not linked to a booking';
-  const answersHtml = Object.entries(answers)
+  const answersHtml = Object.entries(cleanAnswers)
     .map(([q, a]) => `<p><b>${esc(q)}</b><br>${esc(a)}</p>`)
     .join('');
 

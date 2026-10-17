@@ -2,8 +2,6 @@ import { v4 as uuid } from 'uuid';
 import { db } from '../config/db.js';
 import { sendMail, notifyOwner } from '../utils/mailer.js';
 import { hasConflict, toMinutes, typeOf, isPast } from '../utils/slots.js';
-import Booking from '../models/Booking.js';
-import { sendConfirmationEmail } from '../utils/sendEmail.js';
 import { createMeetEvent } from '../utils/googleMeet.js';
 
 const ADDRESS = '1567 Sherman Avenue, Evanston, IL 60201';
@@ -17,14 +15,21 @@ export const getAvailability = (req, res) => {
   const { date } = req.query;
   if (!date) return res.status(400).json({ success: false, message: 'date query required' });
 
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(date + 'T12:00:00').getTime())) {
+    return res.status(400).json({ success: false, message: 'Invalid date' });
+  }
   const day = new Date(date + 'T12:00:00').getDay();
   if (day === 0) return res.json({ success: true, data: [] });
+
+  // serviceId diya ho to us service ki duration se overlap check hoga
+  const svc = req.query.serviceId ? db.data.services.find((x) => x.id === req.query.serviceId) : null;
+  const duration = Number(svc?.duration) || 45;
 
   const slots = [];
   let hour = 10, min = 0;
   while (hour < 18) {
     const label = `${hour > 12 ? hour - 12 : hour}:${min === 0 ? '00' : min} ${hour >= 12 ? 'PM' : 'AM'}`;
-    const taken = isPast(date, label) || hasConflict(db.data, { date, slot: label, duration: 45 });
+    const taken = isPast(date, label) || hasConflict(db.data, { date, slot: label, duration });
     slots.push({ time: label, available: !taken });
     min += 45;
     if (min >= 60) { min -= 60; hour++; }
@@ -41,7 +46,7 @@ export const getBookedSlots = (req, res) => {
 
   // Us date ke non-cancelled bookings filter karo aur sirf slot time return karo
   const bookedTimes = bookings
-    .filter((b) => b.date === date && b.status !== 'cancelled')
+    .filter((b) => b.date === date && String(b.status).toLowerCase() !== 'cancelled')
     .map((b) => b.slot); // e.g., ['10:00 AM', '11:15 AM']
 
   res.json({ success: true, bookedTimes });
@@ -150,6 +155,13 @@ export const createBooking = async (req, res) => {
     return res.status(400).json({ success: false, message: 'That time has already passed. Please pick a later slot.' });
   }
 
+  if (typeof serviceId !== 'string' || typeof name !== 'string' || typeof email !== 'string') {
+    return res.status(400).json({ success: false, message: 'Invalid input' });
+  }
+  const cleanAddOns = Array.isArray(addOns)
+    ? addOns.filter((a) => typeof a === 'string').slice(0, 10).map((a) => a.trim().slice(0, 80))
+    : [];
+
   const service = db.data.services.find((s) => s.id === serviceId);
   if (!service) return res.status(404).json({ success: false, message: 'Invalid service' });
   if (service.active === false) {
@@ -176,7 +188,7 @@ export const createBooking = async (req, res) => {
     email: String(email).trim(),
     phone: String(phone || '').trim().slice(0, 30),
     note: String(note || '').slice(0, 1000),
-    addOns,
+    addOns: cleanAddOns,
     mode: isOnline ? 'online' : 'in-person',
     meetLink: ownLink,
     meetLinkSent: false,
@@ -218,63 +230,4 @@ export const createBooking = async (req, res) => {
   );
 
   res.status(201).json({ success: true, data: booking });
-};
-
-export const confirmBooking = async (req, res) => {
-  try {
-    const { customerDetails, serviceDetails, paymentIntentId } = req.body;
-
-    // 1. Idempotency Check: Agar user galti se page refresh kar de, toh double booking na ho
-    let existingBooking = null;
-    if (paymentIntentId) {
-      existingBooking = await Booking.findOne({ paymentIntentId });
-    }
-    if (existingBooking) {
-      return res.status(200).json({ success: true, message: 'Booking already confirmed', booking: existingBooking });
-    }
-
-    const cName = customerDetails ? `${customerDetails.firstName || customerDetails.name || ''} ${customerDetails.lastName || ''}`.trim() : 'Guest';
-
-    // 2. Save to MongoDB
-    const newBooking = await Booking.create({
-      customerName: cName,
-      customerEmail: customerDetails?.email || 'guest@example.com',
-      customerPhone: customerDetails?.phone || 'N/A',
-      serviceName: serviceDetails?.name || 'Treatment',
-      staffMember: serviceDetails?.staff || 'Puja', 
-      bookingDate: serviceDetails?.date ? new Date(serviceDetails.date) : new Date(),
-      bookingTime: serviceDetails?.time || serviceDetails?.slot || '10:00 AM',
-      depositPaid: serviceDetails?.deposit || 25,
-      totalAmount: serviceDetails?.price || 25,
-      paymentIntentId: paymentIntentId || `pi_manual_${Date.now()}`
-    });
-
-    // 3. Trigger Email (Fire and forget - await mat karo taaki client ko jaldi response mile)
-    if (customerDetails?.email) {
-      sendConfirmationEmail(
-        customerDetails.email,
-        customerDetails.firstName || customerDetails.name || cName,
-        serviceDetails?.name || 'Treatment',
-        serviceDetails?.date || new Date().toISOString(),
-        serviceDetails?.time || serviceDetails?.slot || '10:00 AM'
-      ).catch(err => console.error("Email sending failed:", err));
-    }
-
-    res.status(201).json({ success: true, booking: newBooking });
-
-  } catch (error) {
-    console.error("Booking Save Error:", error);
-    res.status(500).json({ success: false, message: 'Failed to save booking data' });
-  }
-};
-
-// Fetch all bookings for Admin Calendar
-export const getAllBookings = async (req, res) => {
-  try {
-    const bookings = await Booking.find().sort({ bookingDate: -1 });
-    res.status(200).json({ success: true, bookings });
-  } catch (error) {
-    console.error("Fetch Bookings Error:", error);
-    res.status(500).json({ success: false, message: 'Failed to fetch bookings' });
-  }
 };

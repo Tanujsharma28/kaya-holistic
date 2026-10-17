@@ -16,7 +16,8 @@ export const getServices = () =>
     return d;
   });
 export const getQuizQuestions = () => client.get("/quiz").then(r => r.data.data);
-export const getAvailability = (date) => client.get(`/bookings/availability?date=${date}`).then(r => r.data.data);
+export const getAvailability = (date, serviceId) =>
+  client.get('/bookings/availability', { params: { date, serviceId } }).then(r => r.data.data);
 export const createBooking = (payload) => client.post("/bookings", payload).then(r => r.data.data);
 export const submitConsultation = (payload) => client.post("/consultation", payload).then(r => r.data.data);
 

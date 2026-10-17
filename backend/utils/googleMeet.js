@@ -38,7 +38,7 @@ export async function createMeetEvent(booking) {
   const res = await getCalendar().events.insert({
     calendarId: calId(),
     conferenceDataVersion: 1,
-    sendUpdates: 'all',
+    sendUpdates: 'none',
     resource: {
       summary: `${booking.serviceName} - ${booking.name}`,
       description: `Kaya Holistic Spa online consultation.\nClient: ${booking.name} (${booking.email})`,
@@ -66,7 +66,7 @@ export async function updateMeetEvent(booking) {
   await getCalendar().events.patch({
     calendarId: calId(),
     eventId: booking.calendarEventId,
-    sendUpdates: 'all',
+    sendUpdates: 'none',
     resource: timing(booking),
   });
 }
@@ -75,7 +75,7 @@ export async function updateMeetEvent(booking) {
 export async function deleteMeetEvent(eventId) {
   if (!eventId) return;
   try {
-    await getCalendar().events.delete({ calendarId: calId(), eventId, sendUpdates: 'all' });
+    await getCalendar().events.delete({ calendarId: calId(), eventId, sendUpdates: 'none' });
   } catch (e) {
     const code = e?.code || e?.response?.status;
     if (code === 404 || code === 410) return; // pehle hi hat chuka hai

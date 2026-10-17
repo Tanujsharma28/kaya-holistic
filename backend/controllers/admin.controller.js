@@ -1,7 +1,6 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import fs from 'fs';
-import path from 'path';
+
 import { db } from '../config/db.js';
 import { hasConflict, durationOf, typeOf, toMinutes, isPast } from '../utils/slots.js';
 import { sendMail } from '../utils/mailer.js';
@@ -16,7 +15,9 @@ const isVideo = (booking) => {
   return mode.includes('online') || mode.includes('video') || mode.includes('virtual');
 };
 
-const STATUSES = ['confirmed', 'completed', 'cancelled', 'no-show', 'Approved', 'approved'];
+const STATUSES = ['confirmed', 'completed', 'cancelled', 'no-show'];
+// Purane 'Approved' ko hamesha 'confirmed' bana do, taaki stats aur reminders sahi chalein
+const normStatus = (s) => (typeof s === 'string' && s.toLowerCase() === 'approved' ? 'confirmed' : s);
 const TZ = 'America/Chicago';
 const chicagoToday = () => new Date().toLocaleDateString('en-CA', { timeZone: TZ });
 const addDays = (iso, n) => {
@@ -64,7 +65,7 @@ export const login = async (req, res) => {
     return bad(res, 'Invalid credentials', 401);
   }
   attempts.delete(ip);
-  const token = jwt.sign({ email: ADMIN_EMAIL, role: 'admin' }, JWT_SECRET, { expiresIn: '7d' });
+  const token = jwt.sign({ email: ADMIN_EMAIL, role: 'admin' }, JWT_SECRET, { expiresIn: '12h' });
   res.json({ success: true, token, data: { token, email: ADMIN_EMAIL } });
 };
 
@@ -123,7 +124,8 @@ export const updateBooking = async (req, res) => {
   const b = db.data.bookings.find((x) => x.id === req.params.id);
   if (!b) return bad(res, 'Booking not found', 404);
 
-  const { status, adminNote, date, slot, meetLink, notify = true } = req.body || {};
+  const { adminNote, date, slot, meetLink, notify = true } = req.body || {};
+  const status = normStatus(req.body?.status);
   if (status !== undefined && !STATUSES.includes(status)) return bad(res, 'Invalid status');
   if (adminNote !== undefined && typeof adminNote !== 'string') return bad(res, 'Invalid note');
   if (meetLink !== undefined) {
@@ -195,7 +197,7 @@ export const updateBooking = async (req, res) => {
       emailed = !!(await sendMail({ to: b.email, ...rescheduleEmail(enrich(b), prev) }));
     } else if (linkChanged && b.meetLink && isVideo(b) && b.status !== 'cancelled') {
       emailed = !!(await sendMail({ to: b.email, ...meetLinkEmail(enrich(b), b.meetLink) }));
-    } else if ((b.status === 'confirmed' || b.status === 'Approved') && prev.status !== b.status) {
+    } else if (b.status === 'confirmed' && prev.status !== b.status) {
       emailed = !!(await sendMail({ to: b.email, ...bookingConfirmationEmail(enrich(b)) }));
     }
   }
@@ -298,27 +300,41 @@ export const deleteService = async (req, res) => {
 
 // Booking Approve route
 export const approveBooking = async (req, res) => {
-  const { id } = req.params;
-  const { meetLink } = req.body;
+  const b = db.data.bookings.find((x) => x.id === req.params.id);
+  if (!b) return bad(res, 'Booking not found', 404);
 
-  try {
-    let bookingIndex = db.data.bookings.findIndex(b => b.id === id || b._id === id);
-    if (bookingIndex === -1) {
-      return res.status(404).json({ success: false, message: "Booking not found" });
+  const meetLink = req.body?.meetLink;
+  if (meetLink !== undefined) {
+    if (typeof meetLink !== 'string' || (meetLink.trim() && !MEET_RE.test(meetLink.trim()))) {
+      return bad(res, 'Enter a valid Google Meet link, like https://meet.google.com/abc-defg-hij');
     }
-
-    const booking = db.data.bookings[bookingIndex];
-    booking.status = 'confirmed';
-    if (meetLink) booking.meetLink = meetLink.trim();
-    booking.updatedAt = new Date().toISOString();
-    await db.write();
-
-    const enriched = enrich(booking);
-    const emailed = !!(await sendMail({ to: booking.email, ...bookingConfirmationEmail(enriched) }));
-
-    res.status(200).json({ success: true, message: "Booking approved and email sent!", booking: enriched, emailed });
-  } catch (error) {
-    console.error("Approval error:", error);
-    res.status(500).json({ success: false, message: error.message });
   }
+
+  const wasCancelled = b.status === 'cancelled';
+  const alreadyConfirmed = b.status === 'confirmed';
+  // Cancelled booking wapas confirm ho rahi hai to slot khali hona chahiye
+  if (wasCancelled && hasConflict(db.data, { date: b.date, slot: b.slot, duration: durationOf(db.data, b), ignoreId: b.id })) {
+    return bad(res, 'That time overlaps another appointment', 409);
+  }
+
+  b.status = 'confirmed';
+  if (meetLink && meetLink.trim()) { b.meetLink = meetLink.trim(); b.reminderSent = false; }
+  b.updatedAt = new Date().toISOString();
+  await db.write();
+
+  if (wasCancelled && isVideo(b) && !b.meetLink) {
+    try {
+      const ev = await createMeetEvent({ ...b, duration: durationOf(db.data, b) });
+      b.meetLink = ev.link;
+      b.calendarEventId = ev.eventId;
+      await db.write();
+    } catch (e) {
+      console.error('Meet link on approve failed:', e.message);
+    }
+  }
+
+  const enriched = enrich(b);
+  // Pehle se confirmed ho to dobara email mat bhejo
+  const emailed = alreadyConfirmed ? false : !!(await sendMail({ to: b.email, ...bookingConfirmationEmail(enriched) }));
+  res.json({ success: true, message: alreadyConfirmed ? 'Booking was already confirmed' : 'Booking approved', booking: enriched, data: enriched, emailed });
 };

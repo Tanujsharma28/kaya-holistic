@@ -41,7 +41,7 @@ export default function OnlineConsultation() {
     if (!selectedDate || isSunday) return;
     setSlotsLoading(true);
     setSelectedTime("");
-    getAvailability(selectedDate)
+    getAvailability(selectedDate, "virt")
       .then((data) => {
         setSlots(Array.isArray(data) && data.length ? data : FALLBACK_SLOTS.map((t) => ({ time: t, available: true })));
       })
