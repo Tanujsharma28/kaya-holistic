@@ -21,8 +21,8 @@ const buildSlotLabels = () => {
   }
   return out;
 };
-const SLOT_LABELS = buildSlotLabels();
-const normSlot = (s) => String(s).trim().toUpperCase().replace(/^0/, '').replace(/\s+/g, ' ');
+export const SLOT_LABELS = buildSlotLabels();
+export const normSlot = (s) => String(s).trim().toUpperCase().replace(/^0/, '').replace(/\s+/g, ' ');
 export const getAvailability = (req, res) => {
   const { date } = req.query;
   if (!date) return res.status(400).json({ success: false, message: 'date query required' });
@@ -151,6 +151,7 @@ export const createBooking = async (req, res) => {
   if (!serviceId || !date || !slot || !name || !email) {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
   }
+  // Har field string hona chahiye. Array/object bhejne par DB me kharab data jaata tha aur admin stats crash ho jaate the.
   const isStr = (v) => typeof v === 'string';
   if (![serviceId, date, slot, name, email].every(isStr)
     || [phone, note, mode, videoLink, type].some((v) => v !== undefined && v !== null && !isStr(v))) {
@@ -218,9 +219,22 @@ export const createBooking = async (req, res) => {
   db.data.bookings  .push(booking);
   await db.write();
 
+  await finalizeConfirmedBooking(booking, service);
+
+  res.status(201).json({ success: true, data: booking });
+};
+
+// Confirmed ho chuki booking (free flow se ya Stripe payment ke baad) ke liye
+// Meet link banana aur confirmation emails bhejna — dono jagah se reuse hota hai.
+export async function finalizeConfirmedBooking(booking, service) {
+  const formattedDate = new Date(booking.date + 'T12:00:00').toLocaleDateString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+  });
+  const isOnline = booking.mode === 'online' || booking.mode === 'virtual';
+
   if (isOnline && !booking.meetLink) {
     try {
-           const ev = await createMeetEvent(booking);
+      const ev = await createMeetEvent(booking);
       booking.meetLink = ev.link;
       booking.calendarEventId = ev.eventId;
       await db.write();
@@ -232,19 +246,16 @@ export const createBooking = async (req, res) => {
   const link = isOnline ? booking.meetLink : '';
   const ctx = { b: booking, service, formattedDate, isOnline, link };
 
-  Promise.allSettled([
+  const results = await Promise.allSettled([
     sendMail({
       to: booking.email,
       subject: `Appointment confirmed: ${service.name} on ${formattedDate}`,
       html: clientEmail(ctx),
     }),
     notifyOwner({
-      subject: `New booking: ${booking.name}, ${service.name}, ${formattedDate} at ${slot}`,
+      subject: `New booking: ${booking.name}, ${service.name}, ${formattedDate} at ${booking.slot}`,
       html: ownerEmail(ctx),
     }),
-  ]).then((results) =>
-    results.forEach((r) => r.status === 'rejected' && console.error('Email error:', r.reason?.message))
-  );
-
-  res.status(201).json({ success: true, data: booking });
-};
+  ]);
+  results.forEach((r) => r.status === 'rejected' && console.error('Email error:', r.reason?.message));
+}

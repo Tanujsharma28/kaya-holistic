@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { createBooking, getAvailability, getServices } from "../api/client";
+import { createCheckoutSession, getAvailability, getServices } from "../api/client";
 
 const DEFAULT_SERVICE = {
   id: "virt",
@@ -63,7 +63,10 @@ export default function OnlineConsultation() {
 
     setIsLoading(true);
     try {
-      const res = await createBooking({
+      // Yahan booking turant confirm nahi hoti — pehle Stripe pe $45 pay karna
+      // hota hai, payment safal hone ke baad hi (webhook ke zariye) booking
+      // confirm hoti hai aur email/Meet link jaate hain.
+      const res = await createCheckoutSession({
         serviceId: SERVICE.id,
         date: selectedDate,
         slot: selectedTime,
@@ -71,12 +74,15 @@ export default function OnlineConsultation() {
         email: details.email,
         phone: details.phone,
         note: details.notes,
-        mode: "online",
       });
-      navigate("/confirmation", { state: { booking: res?.data || res, service: SERVICE } });
+      if (res?.url) {
+        window.location.href = res.url; // Stripe ke secure payment page par
+      } else {
+        setBookingError("Could not start payment. Please try again.");
+        setIsLoading(false);
+      }
     } catch (err) {
-      setBookingError(err?.response?.data?.message || "Booking failed. Please try again.");
-    } finally {
+      setBookingError(err?.response?.data?.message || "Something went wrong. Please try again.");
       setIsLoading(false);
     }
   };
@@ -171,8 +177,9 @@ export default function OnlineConsultation() {
           {bookingError && <div className="oc-error">{bookingError}</div>}
 
           <button className="oc-btn" type="submit" disabled={isLoading || isSunday}>
-            {isLoading ? "Confirming…" : `Confirm — ${SERVICE.price}`}
+            {isLoading ? "Redirecting to secure payment…" : `Pay & Book — ${SERVICE.price}`}
           </button>
+          <p className="oc-secure-note">🔒 Secure payment via Stripe. Your slot is held while you pay.</p>
         </form>
       </div>
     </div>
@@ -201,6 +208,7 @@ const OC_CSS = `
 .oc-error { background: #fff0f0; border: 1px solid #ffd4d4; border-radius: 10px; padding: 12px 14px; color: #c0392b; font-size: 0.88rem; }
 .oc-btn { background: #241A13; color: #fff; border: none; padding: 15px; border-radius: 99px; font-weight: 600; font-size: 0.95rem; cursor: pointer; }
 .oc-btn:disabled { background: #D9D2CB; cursor: not-allowed; }
+.oc-secure-note { text-align: center; font-size: 0.78rem; color: #9c8a73; margin: -6px 0 0; }
 .oc-success-card { max-width: 480px; margin: 0 auto; background: #fff; border: 1px solid #E6DDD0; border-radius: 20px; padding: 48px 32px; text-align: center; }
 .oc-success-icon { font-size: 2.2rem; color: #2D3A31; margin-bottom: 16px; }
 .oc-success-card h2 { font-family: Fraunces, Georgia, serif; margin: 0 0 12px; }

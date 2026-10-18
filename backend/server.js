@@ -8,14 +8,16 @@ import { initReminderCron } from './utils/reminderScheduler.js';
 import servicesRoutes from './routes/services.routes.js';
 import quizRoutes from './routes/quiz.routes.js';
 import bookingRoutes from './routes/booking.routes.js';
+import paymentRoutes from './routes/payment.routes.js';
+import { stripeWebhook } from './controllers/payment.controller.js';
 import consultationRoutes from './routes/consultation.routes.js';
 import adminRoutes from './routes/admin.routes.js';
-import { notFound, errorHandler } from './middleware/errorHandler.js';
+import { notFound, errorHandler, asyncHandler } from './middleware/errorHandler.js';
 
 const isProd = process.env.NODE_ENV === 'production';
 
 // Production me zaroori env vars ke bina start hi mat karo
-const REQUIRED = ['JWT_SECRET', 'ADMIN_EMAIL', 'ADMIN_PASSWORD_HASH', 'CLIENT_URL'];
+const REQUIRED = ['JWT_SECRET', 'ADMIN_EMAIL', 'ADMIN_PASSWORD_HASH', 'CLIENT_URL', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'];
 const missing = REQUIRED.filter((k) => !process.env[k]);
 if (isProd && missing.length) {
   console.error(`❌ Missing required env vars: ${missing.join(', ')}`);
@@ -46,6 +48,11 @@ app.use(cors({
   },
 }));
 
+// Stripe webhook ko raw (unparsed) body chahiye signature verify karne ke liye —
+// isliye yeh express.json() se PEHLE aana zaroori hai, warna signature check
+// hamesha fail hoga.
+app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyncHandler(stripeWebhook));
+
 app.use(express.json({ limit: '50kb' }));
 app.use(morgan(isProd ? 'combined' : 'dev'));
 
@@ -53,6 +60,10 @@ app.use(morgan(isProd ? 'combined' : 'dev'));
 app.post('/api/bookings', rateLimit({
   windowMs: 60 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false,
   message: { success: false, message: 'Too many booking attempts. Please try again later.' },
+}));
+app.post('/api/bookings/checkout', rateLimit({
+  windowMs: 60 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false,
+  message: { success: false, message: 'Too many payment attempts. Please try again later.' },
 }));
 app.post('/api/consultation', rateLimit({
   windowMs: 60 * 60 * 1000, limit: 15, standardHeaders: true, legacyHeaders: false,
@@ -66,6 +77,7 @@ app.use('/api/admin/login', rateLimit({
 app.use('/api/services', servicesRoutes);
 app.use('/api/quiz', quizRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/bookings', paymentRoutes);
 app.use('/api/consultation', consultationRoutes);
 app.use('/api/admin', adminRoutes);
 
