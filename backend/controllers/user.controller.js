@@ -2,7 +2,10 @@ import jwt from 'jsonwebtoken';
 import { google } from 'googleapis';
 import { v4 as uuid } from 'uuid';
 import { db } from '../config/db.js';
-import { toMinutes } from '../utils/slots.js';
+import { toMinutes, isPast, durationOf } from '../utils/slots.js';
+import { deleteMeetEvent } from '../utils/googleMeet.js';
+import { sendMail } from '../utils/mailer.js';
+import { cancellationEmail } from '../utils/adminEmails.js';
 
 const norm = (e = '') => String(e).trim().toLowerCase();
 const todayChicago = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
@@ -114,21 +117,31 @@ export const googleLogin = async (req, res) => {
   const token = jwt.sign({ uid: user.id, role: 'user' }, process.env.JWT_SECRET, { expiresIn: '30d' });
   res.json({ success: true, data: { token, user: publicUser(user) } });
 };
-
 // ── Customer: apna account + history ────────────────────────
 export const getMe = (req, res) => {
   const u = req.user;
-  const timeline = buildTimeline(u.email, u);
+  const today = todayChicago();
+  const { bookings } = collect(u.email);
+  const upcoming = bookings.filter((b) => b.status === 'confirmed' && b.date >= today).sort(byWhen);
+  const past = bookings
+    .filter((b) => !(b.status === 'confirmed' && b.date >= today))
+    .sort((a, b) => byWhen(b, a))
+    .slice(0, 20);
+
+  const timeline = buildTimeline(u.email, u).filter((e) => e.type !== 'booking');
   const count = (t) => timeline.filter((e) => e.type === t).length;
+
   res.json({
     success: true,
     data: {
       user: publicUser(u),
+      upcoming,
+      past,
       timeline: timeline.slice(0, 200),
       counts: {
         signins: count('login') + count('signup'),
         quizzes: count('quiz'),
-        bookings: count('booking'),
+        bookings: bookings.length,
         forms: count('consent') + count('intake'),
       },
     },
@@ -145,6 +158,32 @@ export const trackActivity = async (req, res) => {
   if (!text) return res.status(400).json({ success: false, message: 'Unknown activity' });
   if (logActivity(req.user.id, type, text)) await db.write();
   res.json({ success: true });
+};
+
+// ── Customer: apni booking khud cancel kare ─────────────────
+export const cancelMyBooking = async (req, res) => {
+  const b = (db.data.bookings || []).find((x) => x.id === req.params.id);
+  if (!b || norm(b.email) !== norm(req.user.email)) {
+    return res.status(404).json({ success: false, message: 'Booking not found' });
+  }
+  if (b.status === 'cancelled') return res.status(400).json({ success: false, message: 'This is already cancelled' });
+  if (b.status !== 'confirmed') return res.status(400).json({ success: false, message: 'This appointment cannot be cancelled' });
+  if (isPast(b.date, b.slot)) return res.status(400).json({ success: false, message: 'That time has already passed' });
+
+  b.status = 'cancelled';
+  b.updatedAt = new Date().toISOString();
+
+  try {
+    if (b.calendarEventId) { await deleteMeetEvent(b.calendarEventId); b.calendarEventId = ''; }
+  } catch (e) { console.error('Calendar sync failed:', e.message); }
+
+  logActivity(req.user.id, 'cancel', `Cancelled ${b.serviceName} on ${b.date} at ${b.slot}`);
+  await db.write();
+
+  if (b.email) {
+    sendMail({ to: b.email, ...cancellationEmail({ ...b, duration: durationOf(db.data, b) }) }).catch(() => {});
+  }
+  res.json({ success: true, data: b });
 };
 
 export const updateMe = async (req, res) => {
