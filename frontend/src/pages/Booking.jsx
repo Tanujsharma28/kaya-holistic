@@ -1,5 +1,6 @@
    import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { logActivity } from '../api/userClient';
 
 const Booking = () => {
   const [loading, setLoading] = useState(true);
@@ -11,6 +12,8 @@ const Booking = () => {
    }, []);
 
   const SETMORE_URL = "https://kayaholisticspa.setmore.com";
+
+  useEffect(() => { logActivity('booking_page'); }, []);
 
   return (
     <div className="view booking-page-wrapper">

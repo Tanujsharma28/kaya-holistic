@@ -135,6 +135,16 @@ export default function Confirmation() {
           </div>
         )}
 
+        {!isOnline && (
+          <div className="cf-next">
+            <h3>Before your visit</h3>
+            <p>Please complete your Facial Consent Form (takes about 2 minutes).</p>
+            <button className="cf-btn" onClick={() => navigate(`/consent?booking=${booking.id}`)}>
+              Fill Consent Form →
+            </button>
+          </div>
+        )}
+
         <div className="cf-actions">
           {isOnline && booking.meetLink && (
             <a className="cf-btn dark" href={booking.meetLink} target="_blank" rel="noreferrer">Open Google Meet link</a>

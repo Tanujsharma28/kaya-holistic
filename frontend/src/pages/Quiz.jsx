@@ -10,7 +10,7 @@ const QUESTIONS = [
     o: [
       ["Oily & Congested", "oily", "Frequent shine, enlarged pores, prone to breakouts"],
       ["Dry & Flaky", "dry", "Tightness, rough patches, lack of natural oils"],
-      ["Combination", "combination", "Oily T-zone (forehead/nose) with dry or normal cheeks"],
+      ["Combination / T-Zone", "combination", "Oily T-zone (forehead/nose) with dry or normal cheeks"],
       ["Balanced / Normal", "normal", "Comfortable, even texture with minimal concerns"],
     ],
   },
@@ -55,17 +55,7 @@ const QUESTIONS = [
       ["Low Stress / Rested", "low", "Well-rested with a steady self-care routine"],
     ],
   },
-  {
-    k: "routineGoal",
-    t: "What type of professional treatment experience do you prefer?",
-    sub: "Helps us pair you with the ideal facial or holistic therapy session.",
-    o: [
-      ["Deep Cleansing & Purifying Ritual", "cleansing", "Intensive extraction, detoxification, and pore clarity"],
-      ["Rejuvenating & Firming Therapy", "aging-facial", "Lifting massage, collagen boosting, and deep nourishment"],
-      ["Calming Botanical Healing", "soothing", "Barrier repair, anti-inflammatory herbs, and extreme relaxation"],
-      ["Signature Holistic Glow", "signature", "All-in-one customized facial tailored by Puja or Sia"],
-    ],
-  },
+
 ];
 
 export default function Quiz() {

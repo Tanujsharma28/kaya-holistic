@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
+import { logActivity } from "../api/userClient";
 
 const SERVICE_META = {
   express: {
@@ -68,6 +69,11 @@ const SERVICE_META = {
   clear:     { icon: "🍃", tagline: "Calm breakouts, clear congestion", tag: null },
   rosacea:   { icon: "🌿", tagline: "Soothe redness & sensitivity", tag: null },
   corrective:{ icon: "💡", tagline: "LED light therapy", tag: null },
+  holistic:  { icon: "🌿", tagline: "Total balance & glow", tag: null },
+  teen:      { icon: "🌱", tagline: "Gentle care for young skin", tag: null },
+  dermaplane:{ icon: "🪞", tagline: "Smooth, instant glow", tag: null },
+  brighten:  { icon: "🌟", tagline: "Brighter, clearer skin", tag: null },
+  mdpeel:    { icon: "💎", tagline: "Resurface & refine", tag: null },
   virt:    {
     icon: "🖥️",
     tagline: "Expert skin advice, anywhere",
@@ -84,13 +90,14 @@ export default function ServiceCard({ service }) {
   const meta = SERVICE_META[service.id] || DEFAULT_META;
 
   const handleClick = () => {
+    logActivity("book_click", { service: service.name });
     setSelectedService(service);
     navigate("/booking");
   };
 
   return (
     <div className="svc-card" onClick={handleClick}>
-      {meta.tag && <span className="svc-tag">{meta.tag}</span>}
+      {(service.popular || meta.tag) && <span className="svc-tag">{service.popular ? "Very Popular" : meta.tag}</span>}
       <div className="svc-card-top">
         <div className="svc-card-icon">{meta.icon}</div>
         <div className="svc-card-dur">{service.duration} min</div>

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { useUserAuth } from "../context/UserAuthContext";
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const navigate = useNavigate();
+  const { user } = useUserAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -183,6 +185,11 @@ export default function Navbar() {
             font-size: 0.78rem;
           }
         }
+        .nav-signin { background:none; border:1.5px solid #a67c52; color:#7c5c38; border-radius:99px; padding:8px 18px; font:inherit; font-weight:600; font-size:.88rem; cursor:pointer; }
+        .nav-signin:hover { background:#fbf3e7; }
+        .nav-acct { display:flex; align-items:center; gap:8px; background:none; border:1.5px solid #e2d8c8; border-radius:99px; padding:4px 14px 4px 4px; font:inherit; cursor:pointer; color:#5d5043; }
+        .nav-acct img, .nav-acct span { width:30px; height:30px; border-radius:50%; background:#a67c52; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:600; object-fit:cover; }
+        .nav-acct b { font-weight:600; font-size:.88rem; }
       `}</style>
 
       <div className="nav-brand" onClick={() => navigate("/")}>
@@ -206,6 +213,14 @@ export default function Navbar() {
         <button className="btn-book-visit" onClick={() => navigate("/booking")}>
           Book a Visit
         </button>
+        {user ? (
+          <button className="nav-acct" onClick={() => navigate("/account")} title="My account">
+            {user.picture ? <img src={user.picture} alt="" referrerPolicy="no-referrer" /> : <span>{(user.name || "?")[0].toUpperCase()}</span>}
+            <b>{(user.name || "Account").split(" ")[0]}</b>
+          </button>
+        ) : (
+          <button className="nav-signin" onClick={() => navigate("/login")}>Sign in</button>
+        )}
       </nav>
     </header>
   );

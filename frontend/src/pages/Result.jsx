@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getServices, getQuizMap } from '../api/client';
 import { useApp } from '../context/AppContext';
+import { logActivity } from '../api/userClient';
 
 // ─── Recommendation Engine ────────────────────────────────────────────────────
 const SKIN_PROFILES = {
@@ -65,17 +66,36 @@ const ROUTINE_MAP = {
 };
 
 const FACIAL_MAP = {
-  cleansing:    { name: 'Deep Pore Purifying Facial',            duration: '75 min', price: '$95',  desc: 'Intensive steam extraction, enzymatic exfoliation, and activated charcoal mask for a fully detoxed, clarified complexion.',              badge: 'Best for Oily & Acne-Prone' },
-  'aging-facial': { name: 'Lymphatic Drainage Massage Facial',  duration: '90 min', price: '$130', desc: 'Micro-current lifting, collagen peptide infusion, and a firming botanical mask. Visibly tightens and restores youthful radiance.',        badge: 'Best for Anti-Aging' },
-  soothing:     { name: 'Rosacea Facial',                        duration: '60 min', price: '$120', desc: 'Gentle barrier repair using chamomile, centella asiatica, and oat extracts. Designed for sensitive, reactive, or redness-prone skin.', badge: 'Best for Sensitive Skin' },
-  signature:    { name: 'Kaya Signature Holistic Glow',          duration: '90 min', price: '$85',  desc: 'Our iconic all-in-one custom facial tailored by Puja or Sia. Combines cleansing, exfoliation, targeted treatment, and a face massage.',  badge: 'Most Popular' },
-};
-
-const CONCERN_FACIAL_FALLBACK = {
-  hydration:    'soothing',
-  aging:        'aging-facial',
-  acne:         'cleansing',
-  pigmentation: 'signature',
+  advanced: {
+    name: 'Advanced Facial', badge: 'Advanced Treatments', ids: ['hydra', 'nano'],
+    duration: '60 min', price: '$200',
+    desc: 'Our results-driven advanced facials: Hydra Facial for deep hydration and glow, or Nano Needling to reduce acne scars, pore size and fine lines.',
+    fallback: [{ id: 'hydra', name: 'Hydra Facial', price: 200, duration: 60 }, { id: 'nano', name: 'Nano Needling Facial', price: 200, duration: 60 }],
+  },
+  'anti-aging': {
+    name: 'Anti-Aging Facial', badge: 'Best for Anti-Aging', ids: ['lymph', 'anti', 'mdpeel'],
+    duration: '60-90 min', price: '$125',
+    desc: 'Rejuvenating & lifting care: Gua Sha lymphatic massage, the Anti-Aging Facial with microdermabrasion and chemical peel, or Microdermabrasion with Peel.',
+    fallback: [{ id: 'lymph', name: 'Lymphatic Drainage Massage Facial (Gua Sha)', price: 130, duration: 90 }, { id: 'anti', name: 'Anti-Aging Facial', price: 145, duration: 75 }, { id: 'mdpeel', name: 'Microdermabrasion Facial with Peel', price: 125, duration: 60 }],
+  },
+  acne: {
+    name: 'Acne & Deep Pore Cleansing', badge: 'Best for Oily & Acne-Prone', ids: ['ultimate', 'clear'],
+    duration: '60 min', price: '$90',
+    desc: 'Deep Clarity & Pores: the Ultimate Facial for deep pore cleansing, or the Clear Facial (our acne facial) to calm breakouts and clear congestion.',
+    fallback: [{ id: 'ultimate', name: 'Ultimate Facial (Deep Clarity & Pores)', price: 95, duration: 60 }, { id: 'clear', name: 'Clear Facial (Acne Facial)', price: 90, duration: 60 }],
+  },
+  calming: {
+    name: 'Botanical Calming Facial', badge: 'Best for Sensitive Skin', ids: ['rosacea', 'corrective'],
+    duration: '60 min', price: '$120',
+    desc: 'Gentle, soothing care for sensitive and redness-prone skin: the Rosacea Facial, or the Corrective Facial with LED light.',
+    fallback: [{ id: 'rosacea', name: 'Rosacea Facial (Botanical Calming)', price: 120, duration: 60 }, { id: 'corrective', name: 'Corrective Facial (LED Light)', price: 120, duration: 60 }],
+  },
+  signature: {
+    name: 'Kaya Signature (Customize) Facial', badge: 'Most Popular', ids: ['signature', 'gent'],
+    duration: '90 min', price: '$85',
+    desc: "Our iconic all-in-one customized facial tailored by Puja or Sia. Combines cleansing, exfoliation, targeted treatment, and a face massage. Gentleman's Facial is the same custom facial for men.",
+    fallback: [{ id: 'signature', name: 'Kaya Signature Facial (Customize Facial)', price: 85, duration: 90 }, { id: 'gent', name: "Gentleman's Facial (Customize Facial)", price: 85, duration: 45 }],
+  },
 };
 
 const PRODUCT_PICKS = {
@@ -119,9 +139,13 @@ function buildResult(answers) {
   const sens    = answers.sensitivity    || 'medium';
   const env     = answers.environment    || 'urban';
   const stress  = answers.stressLevel    || 'medium';
-  const routine = answers.routineGoal    || 'signature';
-
-  const facialKey = FACIAL_MAP[routine] ? routine : CONCERN_FACIAL_FALLBACK[concern] || 'signature';
+  const routine = null;
+  const facialKey =
+    sens === 'high' ? 'calming'
+    : concern === 'acne' ? 'acne'
+    : concern === 'aging' ? 'anti-aging'
+    : concern === 'hydration' ? 'advanced'
+    : 'signature'; // pigmentation
 
   const ingredients = INGREDIENT_MAP[skin]?.[concern] || INGREDIENT_MAP.combination.hydration;
   const skinRoutine = ROUTINE_MAP[skin] || ROUTINE_MAP.combination;
@@ -135,29 +159,33 @@ function buildResult(answers) {
   const scoreBase = { high: 62, medium: 78, low: 91 }[sens] || 75;
   const skinScore = Math.min(98, scoreBase + (stress === 'low' ? 8 : stress === 'high' ? -6 : 0));
 
-  return { facialKey, skin, concern, sens, env, stress, routine, ingredients, skinRoutine, facial, products, skinProfile, concernData, envTip, stressTip, skinScore };
+  return { facialKey, skin, concern, sens, env, stress, routine, ingredients, skinRoutine, facial, products, skinProfile, concernData, envTip, stressTip, skinScore, quizMap: null };
 }
 
 // Admin ne jo service is quiz result se jodi hai, uska naam/price/time/description use karo.
 // Server na chale ya service hidden ho to upar ka default text hi dikhega.
 function withLiveFacial(r, live) {
-  const svc = live?.services?.find((s) => s.id === live.quizMap?.[r.facialKey]);
-  if (!svc) return r;
+  const base = r.facial;
+  const liveSvcs = (base.ids || [])
+    .map((id) => live?.services?.find((s) => s.id === id))
+    .filter(Boolean);
+  const options = (liveSvcs.length ? liveSvcs : base.fallback).map((s) => ({ id: s.id, name: s.name, price: s.price, duration: s.duration }));
+  const primary = live?.services?.find((s) => s.id === live.quizMap?.[r.facialKey]) || options[0];
   return {
     ...r,
     facial: {
-      ...r.facial,
-      name: svc.name,
-      duration: `${svc.duration} min`,
-      price: `$${svc.price}`,
-      desc: svc.desc || r.facial.desc,
+      ...base,
+      options,
+      primary,
+      duration: primary ? `${primary.duration} min` : base.duration,
+      price: primary ? `$${primary.price}` : base.price,
     },
   };
 }
 
 export default function Result() {
   const navigate = useNavigate();
-  const { quizAnswers } = useApp();
+  const { quizAnswers, setSelectedService } = useApp();
   const [live, setLive] = useState(null);
 
   useEffect(() => {
@@ -167,6 +195,13 @@ export default function Result() {
   }, []);
 
   const r = withLiveFacial(buildResult(quizAnswers || {}), live);
+  const bookOption = (o) => { logActivity('book_click', { service: o.name }); setSelectedService(o); navigate('/booking'); };
+
+  // Customer logged-in hai to quiz ka result unke account me save hota hai
+  useEffect(() => {
+    if (Object.keys(quizAnswers || {}).length) logActivity('quiz', { result: r.facialKey });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="res-page">
@@ -581,6 +616,11 @@ export default function Result() {
           max-width: 660px;
           margin-bottom: 32px;
         }
+        .facial-opts { display:flex; flex-direction:column; gap:12px; margin-bottom:24px; max-width:660px; }
+        .facial-opt { display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); border-radius:16px; padding:14px 18px; }
+        .facial-opt b { display:block; font-weight:600; color:#fff; margin-bottom:3px; }
+        .facial-opt span { font-size:.82rem; color:rgba(243,234,217,.8); }
+        .btn-brown.sm { padding:10px 20px; font-size:.82rem; }
         .facial-cta {
           display: flex;
           gap: 16px;
@@ -896,19 +936,21 @@ export default function Result() {
           <div className="facial-card">
             <div className="facial-badge">{r.facial.badge}</div>
             <h2 className="facial-name">{r.facial.name}</h2>
-            <div className="facial-meta">
-              <span>⏱ {r.facial.duration}</span>
-              <span>💰 Starting from {r.facial.price}</span>
-              <span>📍 Evanston Spa Sanctuary</span>
-            </div>
             <p className="facial-desc">{r.facial.desc}</p>
+            <div className="facial-opts">
+              {(r.facial.options || []).map((o) => (
+                <div key={o.id} className="facial-opt">
+                  <div>
+                    <b>{o.name}</b>
+                    <span>⏱ {o.duration} min · ${o.price}</span>
+                  </div>
+                  <button className="btn-brown sm" onClick={() => bookOption(o)}>Book · ${o.price}</button>
+                </div>
+              ))}
+            </div>
+            <div className="facial-meta"><span>📍 Evanston Spa Sanctuary</span></div>
             <div className="facial-cta">
-              <button className="btn-brown" onClick={() => navigate('/booking')}>
-                Book This Facial · {r.facial.price}
-              </button>
-              <button className="btn-ghost-light" onClick={() => navigate('/consultation')}>
-                Book 1-on-1 Consultation
-              </button>
+              <button className="btn-ghost-light" onClick={() => navigate('/consultation')}>Book 1-on-1 Consultation</button>
             </div>
           </div>
         </section>

@@ -1,13 +1,14 @@
 import { useState } from "react";
 
-const DEFAULT_CATEGORIES = ['Facials', 'Advanced Treatments', 'Anti-Aging', 'Acne & Deep Clarity', 'Botanical Calming', 'Enhancements', 'Massage', 'Waxing & Threading', 'Consultation'];
+const DEFAULT_CATEGORIES = ['Facials', 'Advanced Facials', 'Anti-Aging', 'Acne & Deep Clarity', 'Botanical Calming', 'Enhancements', 'Massage', 'Waxing & Threading', 'Consultation'];
 
 // Skin Quiz ke 4 results. Left side: quiz me customer ka jawab, right side: kaunsi service dikhani hai.
 const QUIZ_RESULTS = [
-  ['signature', 'Signature Holistic Glow', 'Customer picks "Signature Holistic Glow" in the quiz'],
-  ['cleansing', 'Deep Cleansing', 'Customer picks "Deep Cleansing & Purifying Ritual"'],
-  ['aging-facial', 'Rejuvenating & Firming', 'Customer picks "Rejuvenating & Firming Therapy"'],
-  ['soothing', 'Calming & Sensitive', 'Customer picks "Calming Botanical Healing"'],
+  ['advanced', 'Advanced Facial', 'Quiz goal: Deep Hydration & Glow (Hydra / Nano Needling)'],
+  ['anti-aging', 'Anti-Aging Facial', 'Quiz goal: Anti-Aging & Firmness (Gua Sha / Anti-Aging / Microdermabrasion + Peel)'],
+  ['acne', 'Acne + Deep Pore Cleansing', 'Quiz goal: Acne & Blemish Clearing (Ultimate / Clear)'],
+  ['calming', 'Botanical Calming', 'Customer has High Sensitivity (Rosacea / Corrective LED)'],
+  ['signature', 'Customize / Signature Facial', 'Quiz goal: Pigmentation & Brightening'],
 ];
 
 function Row({ s, count, onSave, onDelete }) {

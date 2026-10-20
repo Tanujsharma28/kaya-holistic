@@ -26,5 +26,6 @@ export const createCheckoutSession = (payload) => client.post("/bookings/checkou
 export const getBookingBySession = (sessionId) =>
   client.get(`/bookings/by-session/${encodeURIComponent(sessionId)}`).then(r => r.data);
 export const submitConsultation = (payload) => client.post("/consultation", payload).then(r => r.data.data);
+export const submitConsent = (payload) => client.post("/consent", payload).then(r => r.data.data);
 
 export default client;

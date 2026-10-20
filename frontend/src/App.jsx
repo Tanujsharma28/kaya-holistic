@@ -11,8 +11,12 @@ import Consultation from "./pages/Consultation";
 import Booking from "./pages/Booking";
 import OnlineConsultation from "./pages/OnlineConsultation";
 import Confirmation from "./pages/Confirmation";
+import ConsentForm from "./pages/ConsentForm";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import { UserAuthProvider } from "./context/UserAuthContext";
+import Login from "./pages/Login";
+import Account from "./pages/Account";
 
 function PublicSite() {
   return (
@@ -27,6 +31,9 @@ function PublicSite() {
           <Route path="/booking" element={<Booking />} />
           <Route path="/online-consultation" element={<OnlineConsultation />} />
           <Route path="/confirmation" element={<Confirmation />} />
+          <Route path="/consent" element={<ConsentForm />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/account" element={<Account />} />
                     <Route path="*" element={
             <div style={{ textAlign: "center", padding: "160px 20px 100px" }}>
               <h1 style={{ fontFamily: "Fraunces, Georgia, serif", fontWeight: 400 }}>Page not found</h1>
@@ -45,14 +52,16 @@ export default function App() {
   return (
     <AdminAuthProvider>
       <AppProvider>
-        <Routes>
-          <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/admin-login" element={<AdminLogin />} />
-          <Route path="/admin/dashboard" element={
-            <ProtectedRoute><AdminDashboard /></ProtectedRoute>
-          } />
-          <Route path="/*" element={<PublicSite />} />
-        </Routes>
+        <UserAuthProvider>
+          <Routes>
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin-login" element={<AdminLogin />} />
+            <Route path="/admin/dashboard" element={
+              <ProtectedRoute><AdminDashboard /></ProtectedRoute>
+            } />
+            <Route path="/*" element={<PublicSite />} />
+          </Routes>
+        </UserAuthProvider>
       </AppProvider>
     </AdminAuthProvider>
   );

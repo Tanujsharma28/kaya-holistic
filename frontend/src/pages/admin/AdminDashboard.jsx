@@ -8,6 +8,8 @@ import Bookings from "./tabs/Bookings";
 import CalendarView from "./tabs/CalendarView";
 import Consultations from "./tabs/Consultations";
 import Services from "./tabs/Services";
+import Consents from "./tabs/Consents";
+import Customers from "./tabs/Customers";
 import BookingDrawer from "./BookingDrawer";
 
 const TABS = [
@@ -15,6 +17,8 @@ const TABS = [
   ["bookings", "Bookings"],
   ["calendar", "Calendar"],
   ["consultations", "Consultations"],
+  ["customers", "Customers"],
+  ["consents", "Consent Forms"],
   ["services", "Services"],
 ];
 
@@ -37,10 +41,10 @@ export default function AdminDashboard() {
 
   const load = useCallback(async (silent) => {
     try {
-      const [stats, bookings, consultations, services, quizMap] = await Promise.all([
-        api.getStats(), api.getAllBookings(), api.getAllConsultations(), api.getServicesAdmin(), api.getQuizMapAdmin(),
+      const [stats, bookings, consultations, services, quizMap, consents, customers] = await Promise.all([
+        api.getStats(), api.getAllBookings(), api.getAllConsultations(), api.getServicesAdmin(), api.getQuizMapAdmin(), api.getAllConsents(), api.getCustomers(),
       ]);
-      setData({ stats, bookings, consultations, services, quizMap });
+      setData({ stats, bookings, consultations, services, quizMap, consents, customers });
       setPhase("ready");
     } catch {
       if (!silent) setPhase("error");
@@ -77,12 +81,13 @@ export default function AdminDashboard() {
   const onCreateService = (body) => run(() => api.createService(body), "Service added");
   const onDeleteService = (id) => run(() => api.deleteService(id), "Service deleted");
   const onSaveQuizMap = (map) => run(() => api.saveQuizMap(map), "Skin Quiz results saved");
+  const onDeleteConsent = (id) => run(() => api.deleteConsent(id), "Consent form deleted");
 
   const go = (t, p = "all") => { setPreset(p); setTab(t); setOpenId(null); window.scrollTo(0, 0); };
   const doLogout = () => { logout(); navigate("/admin/login"); };
 
   const openBooking = data?.bookings.find((b) => b.id === openId);
-  const titles = { overview: "Welcome back, Puja", bookings: "Bookings", calendar: "Calendar", consultations: "Consultation intakes", services: "Services" };
+  const titles = { overview: "Welcome back, Puja", bookings: "Bookings", calendar: "Calendar", consultations: "Consultation intakes", customers: "Customers", consents: "Facial consent forms", services: "Services" };
 
   return (
     <div className="adm-root">
@@ -135,6 +140,8 @@ export default function AdminDashboard() {
             {tab === "consultations" && (
               <Consultations consultations={data.consultations} bookings={data.bookings} onDelete={onDeleteConsult} />
             )}
+            {tab === "customers" && <Customers customers={data.customers} />}
+            {tab === "consents" && <Consents consents={data.consents} onDelete={onDeleteConsent} />}
             {tab === "services" && (
               <Services services={data.services} bookings={data.bookings} quizMap={data.quizMap} onSave={onSaveService} onCreate={onCreateService} onDelete={onDeleteService} onSaveQuizMap={onSaveQuizMap} />
             )}

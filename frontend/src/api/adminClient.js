@@ -42,6 +42,9 @@ export const updateBooking = (id, body) => adminClient.patch(`/admin/bookings/${
 export const approveBooking = (id, meetLink) => adminClient.patch(`/admin/bookings/${id}/approve`, { meetLink }).then((r) => r.data);
 export const deleteBookings = (ids) => adminClient.post("/admin/bookings/bulk-delete", { ids }).then((r) => r.data);
 export const deleteConsultation = (id) => adminClient.delete(`/admin/consultations/${id}`).then((r) => r.data);
+export const getAllConsents = () => adminClient.get("/admin/consents").then((r) => r.data.data);
+export const deleteConsent = (id) => adminClient.delete(`/admin/consents/${id}`).then((r) => r.data);
+export const getCustomers = () => adminClient.get("/admin/customers").then((r) => r.data.data);
 export const createService = (body) => adminClient.post("/admin/services", body).then((r) => r.data);
 export const updateService = (id, body) => adminClient.patch(`/admin/services/${id}`, body).then((r) => r.data);
 export const deleteService = (id) => adminClient.delete(`/admin/services/${id}`).then((r) => r.data);
