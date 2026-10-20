@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUserAuth } from "../context/UserAuthContext";
-import { updateMe } from "../api/userClient";
+import { updateMe, cancelBooking } from "../api/userClient";
 
 const CSS = `
 .ac-wrap{min-height:100vh;background:#faf7f2;padding:110px 18px 70px;font-family:'DM Sans',sans-serif;color:#2b2016}
@@ -15,6 +15,8 @@ const CSS = `
 .ac-btn{border:1.5px solid #a67c52;color:#7c5c38;background:#fff;border-radius:99px;padding:10px 22px;font:inherit;font-weight:600;font-size:.9rem;cursor:pointer}
 .ac-btn:hover{background:#fbf3e7}
 .ac-btn.fill{background:#a67c52;color:#fff}.ac-btn.fill:hover{background:#7c5c38}.ac-btn:disabled{opacity:.5;cursor:default}
+.ac-btn.danger{border-color:#c0564b;color:#a1342c}.ac-btn.danger:hover{background:#fbebe8}
+.ac-btn.sm{padding:7px 16px;font-size:.82rem}
 .ac-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}
 @media(max-width:640px){.ac-stats{grid-template-columns:1fr 1fr}}
 .ac-stat{background:#fff;border:1.5px solid #e6ddd0;border-radius:16px;padding:16px;text-align:center}
@@ -33,11 +35,36 @@ const CSS = `
 .ac-i{border:1.5px solid #e2d8c8;border-radius:10px;padding:10px 12px;font:inherit;font-weight:400}
 .ac-i:disabled{background:#f6f1e9;color:#8a7d6e}
 .ac-ok{color:#2f6b34;font-size:.85rem;margin-left:12px}
+.ac-bk{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 0;border-top:1px solid #f3ece1}
+.ac-bk:first-of-type{border-top:none}
+.ac-bk-name{font-weight:600;margin:0 0 4px}
+.ac-bdg{display:inline-block;font-size:.74rem;font-weight:700;letter-spacing:.02em;text-transform:uppercase;padding:3px 10px;border-radius:99px;margin-left:8px;vertical-align:middle}
+.ac-bdg.confirmed{background:#e9f3e5;color:#2f6b34}
+.ac-bdg.completed{background:#e7eef6;color:#2c5a8a}
+.ac-bdg.cancelled{background:#f3ece1;color:#8a7d6e}
+.ac-bdg.no-show{background:#fbe9e7;color:#a1342c}
+.ac-empty{color:#8a7d6e;font-size:.9rem;margin-top:10px}
 `;
 
-const ICON = { signup: "🎉", login: "🔑", quiz: "✨", booking_page: "📅", book_click: "👆", booking: "🗓️", consent: "📝", intake: "🌿" };
-
+const ICON = { signup: "🎉", login: "🔑", quiz: "✨", booking_page: "📅", book_click: "👆", cancel: "🚫", consent: "📝", intake: "🌿" };
 const fmt = (iso) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+const fmtDate = (d) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+
+function BookingCard({ b, onCancel, cancelling }) {
+  return (
+    <div className="ac-bk">
+      <div>
+        <p className="ac-bk-name">{b.serviceName}<span className={`ac-bdg ${b.status}`}>{b.status.replace("-", " ")}</span></p>
+        <span className="ac-mut">{fmtDate(b.date)} · {b.slot}</span>
+      </div>
+      {b.status === "confirmed" && (
+        <button className="ac-btn danger sm" disabled={cancelling} onClick={() => onCancel(b.id)}>
+          {cancelling ? "Cancelling…" : "Cancel"}
+        </button>
+      )}
+    </div>
+  );
+}
 
 export default function Account() {
   const { user, data, ready, logout, refresh } = useUserAuth();
@@ -46,6 +73,9 @@ export default function Account() {
   const [saved, setSaved] = useState(false);
   const [saveErr, setSaveErr] = useState("");
   const [shown, setShown] = useState(20);
+  const [showPast, setShowPast] = useState(false);
+  const [cancellingId, setCancellingId] = useState(null);
+  const [cancelErr, setCancelErr] = useState("");
 
   useEffect(() => { if (ready && !user) navigate("/login?next=/account", { replace: true }); }, [ready, user, navigate]);
   useEffect(() => { if (user) setForm({ name: user.name || "", phone: user.phone || "" }); }, [user]);
@@ -57,11 +87,21 @@ export default function Account() {
   const first = (user.name || "there").split(" ")[0];
   const dirty = form.name !== user.name || form.phone !== (user.phone || "");
   const c = data.counts;
+  const upcoming = data.upcoming || [];
+  const past = data.past || [];
 
   const save = async () => {
     setSaveErr(""); setSaved(false);
     try { await updateMe(form); await refresh(); setSaved(true); }
     catch (e) { setSaveErr(e?.response?.data?.message || "Could not save. Please try again."); }
+  };
+
+  const handleCancel = async (id) => {
+    if (!window.confirm("Cancel this appointment?")) return;
+    setCancelErr(""); setCancellingId(id);
+    try { await cancelBooking(id); await refresh(); }
+    catch (e) { setCancelErr(e?.response?.data?.message || "Could not cancel. Please try again."); }
+    finally { setCancellingId(null); }
   };
 
   return (
@@ -84,8 +124,36 @@ export default function Account() {
         </div>
 
         <div className="ac-card">
+          <h3>Upcoming appointments</h3>
+          {cancelErr && <p className="ac-mut" style={{ color: "#a1342c" }}>{cancelErr}</p>}
+          {upcoming.length === 0 ? (
+            <p className="ac-empty">No upcoming appointments. <a href="/#services">Book one</a>.</p>
+          ) : (
+            upcoming.map((b) => (
+              <BookingCard key={b.id} b={b} onCancel={handleCancel} cancelling={cancellingId === b.id} />
+            ))
+          )}
+        </div>
+
+        <div className="ac-card">
+          <h3>Past appointments</h3>
+          {past.length === 0 ? (
+            <p className="ac-empty">Nothing here yet.</p>
+          ) : (
+            <>
+              {(showPast ? past : past.slice(0, 3)).map((b) => (
+                <BookingCard key={b.id} b={b} onCancel={handleCancel} cancelling={false} />
+              ))}
+              {past.length > 3 && (
+                <div className="ac-more"><button className="ac-btn sm" onClick={() => setShowPast(!showPast)}>{showPast ? "Show less" : `Show all (${past.length})`}</button></div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="ac-card">
           <h3>Your activity</h3>
-          <div className="ac-mut">Everything you have done on our website, newest first.</div>
+          <div className="ac-mut">Everything else you have done on our website, newest first.</div>
           {data.timeline.length === 0 ? (
             <p className="ac-mut" style={{ marginTop: 14 }}>Nothing yet. Take the skin quiz to get started.</p>
           ) : (

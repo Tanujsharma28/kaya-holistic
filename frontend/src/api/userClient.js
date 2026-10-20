@@ -16,6 +16,7 @@ userClient.interceptors.request.use((config) => {
 export const googleLogin = (credential) => userClient.post("/user/google", { credential }).then((r) => r.data.data);
 export const getMe = () => userClient.get("/user/me").then((r) => r.data.data);
 export const updateMe = (body) => userClient.patch("/user/me", body).then((r) => r.data.data);
+export const cancelBooking = (id) => userClient.patch(`/user/bookings/${id}/cancel`).then((r) => r.data.data);
 
 // Logged-in customer ki activity record karo (chup-chaap; fail ho to koi farq nahi). Login nahi hai to kuch nahi hota.
 export const logActivity = (type, data = {}) => {
