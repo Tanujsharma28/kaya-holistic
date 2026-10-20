@@ -11,6 +11,8 @@ import bookingRoutes from './routes/booking.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
 import { stripeWebhook } from './controllers/payment.controller.js';
 import consultationRoutes from './routes/consultation.routes.js';
+import consentRoutes from './routes/consent.routes.js';
+import userRoutes from './routes/user.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import { notFound, errorHandler, asyncHandler } from './middleware/errorHandler.js';
 
@@ -69,6 +71,14 @@ app.post('/api/consultation', rateLimit({
   windowMs: 60 * 60 * 1000, limit: 15, standardHeaders: true, legacyHeaders: false,
   message: { success: false, message: 'Too many submissions. Please try again later.' },
 }));
+app.post('/api/consent', rateLimit({
+  windowMs: 60 * 60 * 1000, limit: 15, standardHeaders: true, legacyHeaders: false,
+  message: { success: false, message: 'Too many submissions. Please try again later.' },
+}));
+app.post('/api/user/google', rateLimit({
+  windowMs: 15 * 60 * 1000, limit: 40, standardHeaders: true, legacyHeaders: false,
+  message: { success: false, message: 'Too many sign-in attempts. Please try again later.' },
+}));
 app.use('/api/admin/login', rateLimit({
   windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false,
   message: { success: false, message: 'Too many attempts. Try again in 15 minutes.' },
@@ -79,6 +89,8 @@ app.use('/api/quiz', quizRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/bookings', paymentRoutes);
 app.use('/api/consultation', consultationRoutes);
+app.use('/api/consent', consentRoutes);
+app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.get('/', (req, res) => res.send('Kaya Holistic Spa API running ✅'));

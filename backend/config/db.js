@@ -34,4 +34,19 @@ db.data.consultations ||= [];
 db.data.settings ||= {};
 // Purani database file me quizMap na ho to defaults se bhar do
 db.data.settings.quizMap = { ...defaultQuizMap, ...(db.data.settings.quizMap || {}) };
+db.data.consents ||= [];
+db.data.users ||= [];
+db.data.activity ||= [];
+
+const SEED_VERSION = seed.settings?.seedVersion || 1;
+if ((db.data.settings.seedVersion || 1) < SEED_VERSION) {
+  for (const s of seed.services || []) {
+    const cur = db.data.services.find((x) => x.id === s.id);
+    if (!cur) db.data.services.push({ ...s });
+    else Object.assign(cur, { name: s.name, price: s.price, duration: s.duration, category: s.category, desc: s.desc, popular: !!s.popular });
+  }
+  db.data.settings.quizMap = { ...defaultQuizMap };
+  db.data.settings.seedVersion = SEED_VERSION;
+}
+await db.write();
 console.log(`🗄️  Database file: ${file}`);

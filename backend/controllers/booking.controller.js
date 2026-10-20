@@ -70,7 +70,8 @@ const row = (k, v) =>
    <td style="padding:11px 0;border-bottom:1px solid #eee3d3;font-size:15px;color:#2b2016;font-weight:600">${v}</td></tr>`;
 
 function clientEmail({ b, service, formattedDate, isOnline, link }) {
-    const intakeUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/consultation?booking=${b.id}`;
+  const intakeUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/consultation?booking=${b.id}`;
+  const consentUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/consent?booking=${b.id}`;
   const online = isOnline
     ? `<table width="100%" cellpadding="0" cellspacing="0" style="background:#fbf3e7;border:1px solid #e6d3b3;border-radius:12px"><tr><td style="padding:22px;text-align:center">
         <p style="margin:0 0 6px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#7c5c38;font-weight:700">Online session on Google Meet</p>
@@ -83,6 +84,7 @@ function clientEmail({ b, service, formattedDate, isOnline, link }) {
     : `<table width="100%" cellpadding="0" cellspacing="0" style="background:#fbf3e7;border:1px solid #e6d3b3;border-radius:12px"><tr><td style="padding:20px 24px;font-size:14px;color:#5c4f41;line-height:1.8">
         <b style="color:#7c5c38;letter-spacing:1px;text-transform:uppercase;font-size:12px">Before your visit</b><br>
         Please arrive 5 minutes early with a clean, makeup-free face.<br>Let us know about any allergies.<br>${ADDRESS}
+        <br><br>Please complete your <a href="${consentUrl}" style="color:#7c5c38;font-weight:700">Facial Consent Form</a> before your visit (2 minutes).
       </td></tr></table>`;
 
   return `<!doctype html><html><body style="margin:0;background:#faf7f2;font-family:Arial,Helvetica,sans-serif">

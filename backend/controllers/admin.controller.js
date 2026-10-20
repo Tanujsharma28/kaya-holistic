@@ -308,7 +308,7 @@ export const deleteService = async (req, res) => {
   res.json({ success: true, message: 'Service deleted successfully' });
 };
 // Skin Quiz results: kaunsa quiz result kaunsi service dikhaye
-const QUIZ_KEYS = ['cleansing', 'aging-facial', 'soothing', 'signature'];
+const QUIZ_KEYS = ['advanced', 'anti-aging', 'acne', 'calming', 'signature'];
 
 export const getQuizMapAdmin = (req, res) =>
   res.json({ success: true, data: db.data.settings?.quizMap || {} });

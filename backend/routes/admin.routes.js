@@ -7,6 +7,8 @@ import {
   getServicesAdmin, createService, updateService, deleteService, approveBooking,
   getQuizMapAdmin, updateQuizMap
 } from '../controllers/admin.controller.js';
+import { getConsentsAdmin, deleteConsent } from '../controllers/consent.controller.js';
+import { getCustomersAdmin } from '../controllers/user.controller.js';
 
 const router = Router();
 
@@ -27,5 +29,8 @@ router.get('/services', h(getServicesAdmin));
 router.post('/services', h(createService));
 router.patch('/services/:id', h(updateService));
 router.delete('/services/:id', h(deleteService));
+router.get('/consents', h(getConsentsAdmin));
+router.delete('/consents/:id', h(deleteConsent));
+router.get('/customers', h(getCustomersAdmin));
 
 export default router;
