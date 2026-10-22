@@ -13,6 +13,7 @@ const PAYABLE_SERVICE_ID = 'virt';
 
 // Checkout session ka valid time — itni der tak slot "pending-payment" rehke hold rahega.
 const HOLD_MINUTES = 20;
+const PAYMENTS_PAUSED = () => process.env.PAYMENTS_PAUSED === 'true';
 
 // ─── 1) Booking draft banao (slot hold) + Stripe Checkout session banao ───
 export const createCheckoutSession = async (req, res) => {
@@ -56,6 +57,31 @@ export const createCheckoutSession = async (req, res) => {
 
   if (hasConflict(db.data, { date, slot, duration: service.duration })) {
     return res.status(409).json({ success: false, message: 'Slot already booked' });
+  }
+    // ── PAUSE MODE: payment ke bina seedha confirm ──
+  if (PAYMENTS_PAUSED()) {
+    const booking = {
+      id: uuid(),
+      serviceId, serviceName: service.name, price: service.price, duration: service.duration,
+      type: 'consultation',
+      date, slot,
+      name: String(name).trim().slice(0, 100),
+      email: String(email).trim(),
+      phone: String(phone || '').trim().slice(0, 30),
+      note: String(note || '').slice(0, 1000),
+      addOns: [],
+      mode: 'online',
+      meetLink: '',
+      meetLinkSent: false,
+      reminderSent: false,
+      status: 'confirmed',
+      paymentSkipped: true, // admin ko pata rahe ki is booking ka payment nahi liya gaya (test)
+      createdAt: new Date().toISOString(),
+    };
+    db.data.bookings.push(booking);
+    await db.write();
+    await finalizeConfirmedBooking(booking, service);
+    return res.status(201).json({ success: true, data: { paused: true, bookingId: booking.id, booking, service } });
   }
 
   // Pehle slot hold karo (status pending-payment), taaki koi aur isi slot pe

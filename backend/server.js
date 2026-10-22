@@ -20,7 +20,9 @@ import { notFound, errorHandler, asyncHandler } from './middleware/errorHandler.
 const isProd = process.env.NODE_ENV === 'production';
 
 // Production me zaroori env vars ke bina start hi mat karo
-const REQUIRED = ['JWT_SECRET', 'ADMIN_EMAIL', 'ADMIN_PASSWORD_HASH', 'CLIENT_URL', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'];
+// PAYMENTS_PAUSED=true (testing) ho to Stripe keys ki zarurat nahi. Live jaate waqt ye line .env se hata do.
+const PAYMENTS_PAUSED = process.env.PAYMENTS_PAUSED === 'true';
+const REQUIRED = ['JWT_SECRET', 'ADMIN_EMAIL', 'ADMIN_PASSWORD_HASH', 'CLIENT_URL', ...(PAYMENTS_PAUSED ? [] : ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'])];
 const missing = REQUIRED.filter((k) => !process.env[k]);
 if (isProd && missing.length) {
   console.error(`❌ Missing required env vars: ${missing.join(', ')}`);

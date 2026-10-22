@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createCheckoutSession, getAvailability, getServices } from "../api/client";
 
+// Testing: VITE_PAYMENTS_PAUSED=true ho to sirf button ka text badalta hai (asli pause backend ke PAYMENTS_PAUSED se hota hai)
+const PAUSED = import.meta.env.VITE_PAYMENTS_PAUSED === "true";
+
 const DEFAULT_SERVICE = {
   id: "virt",
   name: "Virtual Skin Consultation",
@@ -75,6 +78,11 @@ export default function OnlineConsultation() {
         phone: details.phone,
         note: details.notes,
       });
+      if (res?.paused && res.booking) {
+        // Payment pause mode: booking seedha confirm ho gayi, Confirmation page pe bhej do
+        navigate("/confirmation", { state: { booking: res.booking, service: res.service } });
+        return;
+      }
       if (res?.url) {
         window.location.href = res.url; // Stripe ke secure payment page par
       } else {
@@ -177,9 +185,13 @@ export default function OnlineConsultation() {
           {bookingError && <div className="oc-error">{bookingError}</div>}
 
           <button className="oc-btn" type="submit" disabled={isLoading || isSunday}>
-            {isLoading ? "Redirecting to secure payment…" : `Pay & Book — ${SERVICE.price}`}
+            {PAUSED
+              ? (isLoading ? "Booking…" : "Book Now (test mode, no payment)")
+              : (isLoading ? "Redirecting to secure payment…" : `Pay & Book — ${SERVICE.price}`)}
           </button>
-          <p className="oc-secure-note">🔒 Secure payment via Stripe. Your slot is held while you pay.</p>
+          <p className="oc-secure-note">
+            {PAUSED ? "Test mode: no payment is taken right now." : "🔒 Secure payment via Stripe. Your slot is held while you pay."}
+          </p>
         </form>
       </div>
     </div>
