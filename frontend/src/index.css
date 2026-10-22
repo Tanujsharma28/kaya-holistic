@@ -1388,3 +1388,190 @@ a { color: inherit; text-decoration: none; }
     padding: 30px 16px;
   }
 }
+
+/* ===================================================================
+   COMPREHENSIVE RESPONSIVE — ALL DEVICES (phone / tablet / laptop)
+   These only ADD breakpoints; nothing above is changed.
+=================================================================== */
+
+/* ── Tablet 768px ── */
+@media (max-width: 768px) {
+  /* Hero */
+  .hero-bg { background-attachment: scroll !important; min-height: 60vh; }
+  .hero-ctas { flex-direction: column; align-items: stretch; }
+  .hero-ctas .btn { width: 100%; justify-content: center; }
+  .hero-trust { gap: 6px 12px; font-size: 0.8rem; }
+
+  /* Services */
+  .svc-section { padding: 32px 4vw 28px; }
+  .svc-head { flex-direction: column; align-items: flex-start; gap: 6px; }
+
+  /* About strip */
+  .about-strip { padding: 24px 18px; gap: 14px; }
+
+  /* Gallery */
+  .kaya-gallery-section { padding: 48px 16px; border-radius: 20px; }
+  .kaya-gallery-header h2 { font-size: 1.7rem; }
+
+  /* Testimonials */
+  .testimonials { padding: 36px 0 24px; }
+  .carousel-scene { height: 300px; }
+  .review-card { width: 260px; padding: 18px; }
+
+  /* Result page */
+  .result-hero { flex-direction: column; padding: 24px 20px; border-radius: 18px; gap: 16px; }
+  .result-hero-score { width: 100%; }
+  .rec-products-grid { grid-template-columns: 1fr 1fr; }
+
+  /* Consultation */
+  .consult-hero { padding: 26px 18px; border-radius: 18px; }
+  .consult-hero-row { flex-direction: column; align-items: stretch; gap: 14px; }
+
+  /* Booking */
+  .booking-grid { grid-template-columns: 1fr; gap: 16px; }
+  .summary-card { position: static; }
+}
+
+/* ── Large phone 600px ── */
+@media (max-width: 600px) {
+  /* Hero */
+  .hero-bg { min-height: 55vh; }
+  .hero-content { padding: 32px 16px; }
+  .hero-content h1 { font-size: clamp(1.6rem, 7vw, 2.2rem); }
+  .hero-content p { font-size: 0.9rem; }
+
+  /* Services */
+  .svc3d-stage { height: 250px; }
+  .svc3d-slot { width: 200px; margin-left: -100px; }
+
+  /* About */
+  .about-strip { border-radius: 18px; padding: 20px 14px; }
+  .badge { font-size: .72rem; padding: 4px 10px; }
+
+  /* Trust */
+  .trust-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* Booking */
+  .form-grid input, .form-grid textarea { font-size: 16px; }
+  .slot-grid { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); }
+
+  /* Gallery */
+  .kaya-gallery-header h2 { font-size: 1.5rem; }
+  .kaya-3d-stage-wrapper { height: 380px; }
+  .kaya-3d-ring { width: 190px; height: 280px; }
+
+  /* Testimonials */
+  .carousel-scene { height: 280px; }
+  .review-card { width: 240px; }
+
+  /* Result */
+  .result-hero { padding: 20px 16px; border-radius: 16px; }
+  .result-big-score { font-size: 2.4rem; }
+  .rec-products-grid { grid-template-columns: 1fr; }
+  .rec-actions { flex-direction: column; align-items: stretch; }
+  .rec-actions .btn { width: 100%; justify-content: center; }
+
+  /* Consultation */
+  .consult-hero { border-radius: 16px; }
+  .steps-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .meet-expert-card { flex-direction: column; align-items: center; text-align: center; padding: 20px 16px; }
+  .meet-avatar { margin: 0 auto 10px; }
+}
+
+/* ── Small phone 480px ── */
+@media (max-width: 480px) {
+  .main { padding: 76px 12px 28px; }
+  h1 { font-size: clamp(1.5rem, 7vw, 2rem); }
+  h2 { font-size: clamp(1.2rem, 5.5vw, 1.6rem); }
+
+  /* Hero */
+  .hero-bg { min-height: 50vh; }
+  .hero-trust { gap: 6px 10px; font-size: .75rem; }
+
+  /* Services */
+  .svc3d-stage { height: 240px; }
+  .svc3d-slot { width: 188px; margin-left: -94px; }
+  .svc3d-arrow { display: none; }
+
+  /* About */
+  .about-strip { padding: 18px 12px; border-radius: 16px; }
+  .about-avatar { width: 46px; height: 46px; min-width: 46px; }
+
+  /* Trust */
+  .trust-row { grid-template-columns: 1fr; gap: 10px; }
+  .trust-card { padding: 16px; }
+
+  /* Booking */
+  .date-pill { width: 48px; }
+  .date-pill .dom { font-size: 1rem; }
+  .summary-card { border-radius: 16px; padding: 16px; }
+  .confirm-check { width: 52px; height: 52px; font-size: 1.6rem; }
+
+  /* Gallery */
+  .kaya-gallery-section { padding: 36px 12px; border-radius: 14px; }
+  .kaya-gallery-header h2 { font-size: 1.35rem; }
+  .kaya-3d-stage-wrapper { height: 340px; }
+  .kaya-3d-ring { width: 170px; height: 250px; }
+
+  /* Testimonials */
+  .testimonials h2 { font-size: 1.3rem; }
+  .carousel-scene { height: 260px; }
+  .review-card { width: 216px; padding: 14px; }
+  .quote-mark { font-size: 1.6rem; }
+
+  /* Consultation */
+  .steps-grid { grid-template-columns: 1fr; gap: 10px; }
+  .step-card { padding: 16px; border-radius: 14px; }
+  .chat-messages { max-height: 320px; }
+  .consult-price-amt { font-size: 2rem; }
+
+  /* Result */
+  .result-hero { padding: 16px 14px; }
+  .result-big-score { font-size: 2rem; }
+  .rec-banner { padding: 16px; border-radius: 16px; }
+
+  /* Footer */
+  .footer-grid { grid-template-columns: 1fr; gap: 16px; }
+  .footer { padding: 30px 16px; }
+}
+
+/* ── Very small phone 380px ── */
+@media (max-width: 380px) {
+  .main { padding: 70px 10px 24px; }
+  h1 { font-size: 1.45rem; }
+  h2 { font-size: 1.15rem; }
+  .btn { padding: 10px 16px; font-size: .84rem; }
+
+  /* Hero */
+  .hero-content p { font-size: .85rem; line-height: 1.55; }
+  .hero-trust { flex-direction: column; gap: 4px; }
+
+  /* Services */
+  .svc3d-stage { height: 220px; }
+  .svc3d-slot { width: 170px; margin-left: -85px; }
+
+  /* About */
+  .about-strip { padding: 16px 10px; }
+  .about-avatar { width: 40px; height: 40px; min-width: 40px; font-size: 1rem; }
+
+  /* Trust */
+  .trust-num { font-size: 1.5rem; }
+  .trust-card { padding: 14px; }
+
+  /* Gallery */
+  .kaya-3d-stage-wrapper { height: 300px; }
+  .kaya-3d-ring { width: 150px; height: 220px; }
+
+  /* Testimonials */
+  .carousel-scene { height: 240px; }
+  .review-card { width: 200px; padding: 12px; }
+
+  /* Consultation */
+  .consult-hero { padding: 18px 10px; }
+  .consult-price-amt { font-size: 1.7rem; }
+
+  /* Result */
+  .result-hero { padding: 14px 12px; }
+  .result-big-score { font-size: 1.7rem; }
+}
+

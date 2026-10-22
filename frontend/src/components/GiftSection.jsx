@@ -15,7 +15,24 @@ const CSS = `
   border: 1px solid #ece3d6;
 }
 @media (max-width: 760px) {
-  .gs-wrap { grid-template-columns: 1fr; }
+  .gs-wrap { grid-template-columns: 1fr; border-radius: 16px; margin: 12px 0; }
+  .gs-media { min-height: 220px !important; }
+  .gs-body { padding: 18px 16px 22px; }
+  .gs-cards { gap: 8px; }
+  .gs-card { flex: 1 1 calc(50% - 4px); min-width: 110px; }
+  .gs-actions { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .gs-cta { width: 100%; justify-content: center; }
+}
+@media (max-width: 480px) {
+  .gs-media { min-height: 180px !important; }
+  .gs-card { flex: 1 1 100%; }
+  .gs-media-tag { font-size: .6rem; padding: 5px 10px; }
+  .gs-title { font-size: 1.3rem; }
+}
+@media (max-width: 380px) {
+  .gs-media { min-height: 160px !important; }
+  .gs-body { padding: 14px 12px 18px; }
+  .gs-card-amount { font-size: 1.4rem; }
 }
 
 /* ── Image side ── */
