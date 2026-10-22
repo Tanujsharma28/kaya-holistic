@@ -9,6 +9,7 @@ import {
 } from '../controllers/admin.controller.js';
 import { getConsentsAdmin, deleteConsent } from '../controllers/consent.controller.js';
 import { getCustomersAdmin } from '../controllers/user.controller.js';
+import { getGiftCardsAdmin, redeemGiftCard } from '../controllers/giftcard.controller.js';
 
 const router = Router();
 
@@ -32,5 +33,7 @@ router.delete('/services/:id', h(deleteService));
 router.get('/consents', h(getConsentsAdmin));
 router.delete('/consents/:id', h(deleteConsent));
 router.get('/customers', h(getCustomersAdmin));
+router.get('/gift-cards', h(getGiftCardsAdmin));
+router.patch('/gift-cards/:id/redeem', h(redeemGiftCard));
 
 export default router;

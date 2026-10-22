@@ -25,6 +25,9 @@ export const createBooking = (payload) => client.post("/bookings", payload).then
 export const createCheckoutSession = (payload) => client.post("/bookings/checkout", payload).then(r => r.data.data);
 export const getBookingBySession = (sessionId) =>
   client.get(`/bookings/by-session/${encodeURIComponent(sessionId)}`).then(r => r.data);
+export const createGiftCheckout = (payload) => client.post("/gift-cards/checkout", payload).then(r => r.data.data);
+export const getGiftBySession = (sessionId) =>
+  client.get(`/gift-cards/by-session/${encodeURIComponent(sessionId)}`).then(r => r.data);
 export const submitConsultation = (payload) => client.post("/consultation", payload).then(r => r.data.data);
 export const submitConsent = (payload) => client.post("/consent", payload).then(r => r.data.data);
 

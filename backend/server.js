@@ -14,6 +14,7 @@ import consultationRoutes from './routes/consultation.routes.js';
 import consentRoutes from './routes/consent.routes.js';
 import userRoutes from './routes/user.routes.js';
 import adminRoutes from './routes/admin.routes.js';
+import giftCardRoutes from './routes/giftcard.routes.js';
 import { notFound, errorHandler, asyncHandler } from './middleware/errorHandler.js';
 
 const isProd = process.env.NODE_ENV === 'production';
@@ -67,6 +68,10 @@ app.post('/api/bookings/checkout', rateLimit({
   windowMs: 60 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false,
   message: { success: false, message: 'Too many payment attempts. Please try again later.' },
 }));
+app.post('/api/gift-cards/checkout', rateLimit({
+  windowMs: 60 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false,
+  message: { success: false, message: 'Too many payment attempts. Please try again later.' },
+}));
 app.post('/api/consultation', rateLimit({
   windowMs: 60 * 60 * 1000, limit: 15, standardHeaders: true, legacyHeaders: false,
   message: { success: false, message: 'Too many submissions. Please try again later.' },
@@ -88,6 +93,7 @@ app.use('/api/services', servicesRoutes);
 app.use('/api/quiz', quizRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/bookings', paymentRoutes);
+app.use('/api/gift-cards', giftCardRoutes);
 app.use('/api/consultation', consultationRoutes);
 app.use('/api/consent', consentRoutes);
 app.use('/api/user', userRoutes);

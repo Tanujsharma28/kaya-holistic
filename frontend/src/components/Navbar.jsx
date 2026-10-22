@@ -210,6 +210,9 @@ export default function Navbar() {
         <NavLink to="/consultation" className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
           Consultation
         </NavLink>
+                <NavLink to="/gift-cards" className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
+          Gift Cards
+        </NavLink>
         <button className="btn-book-visit" onClick={() => navigate("/booking")}>
           Book a Visit
         </button>

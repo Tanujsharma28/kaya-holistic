@@ -3,6 +3,7 @@ import { db } from '../config/db.js';
 import { stripe } from '../config/stripe.js';
 import { hasConflict, toMinutes, isPast } from '../utils/slots.js';
 import { SLOT_LABELS, normSlot, finalizeConfirmedBooking } from './booking.controller.js';
+import { handleGiftPaid, handleGiftExpired } from './giftcard.controller.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -147,6 +148,17 @@ export const stripeWebhook = async (req, res) => {
 
   try {
     const session = event.data.object;
+
+    // Gift card ka payment alag flow hai
+    if (session.metadata?.giftCardId) {
+      if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
+        if (session.payment_status === 'paid') await handleGiftPaid(session);
+      } else if (event.type === 'checkout.session.expired' || event.type === 'checkout.session.async_payment_failed') {
+        await handleGiftExpired(session);
+      }
+      return res.json({ received: true });
+    }
+
     const bookingId = session.metadata?.bookingId;
 
     if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {

@@ -37,6 +37,7 @@ db.data.settings.quizMap = { ...defaultQuizMap, ...(db.data.settings.quizMap || 
 db.data.consents ||= [];
 db.data.users ||= [];
 db.data.activity ||= [];
+db.data.giftCards ||= [];
 
 const SEED_VERSION = seed.settings?.seedVersion || 1;
 if ((db.data.settings.seedVersion || 1) < SEED_VERSION) {

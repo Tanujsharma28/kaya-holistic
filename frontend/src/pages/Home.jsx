@@ -5,6 +5,7 @@ import ServiceCard from "../components/ServiceCard";
 import Testimonials from "../components/Testimonials";
 import Gallery from "../components/Gallery";
 import Reveal from "../components/Reveal";
+import GiftSection from "../components/GiftSection";
 
 function ServicesCarousel({ services = [] }) {
   const count = services?.length ?? 0;
@@ -188,6 +189,10 @@ export default function Home() {
           <div className="trust-card"><span className="trust-num">120+</span><p>Five-star reviews from Evanston and Chicago clients</p></div>
           <div className="trust-card"><span className="trust-num">$45</span><p>Virtual skin consultation — book from anywhere</p></div>
         </div>
+      </Reveal>
+
+      <Reveal>
+        <GiftSection />
       </Reveal>
 
       <Reveal>

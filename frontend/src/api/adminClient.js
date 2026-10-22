@@ -34,7 +34,8 @@ export const getStats = () => adminClient.get("/admin/stats").then((r) => r.data
 export const getAllBookings = () => adminClient.get("/admin/bookings").then((r) => r.data.data);
 export const getAllConsultations = () => adminClient.get("/admin/consultations").then((r) => r.data.data);
 export const getServicesAdmin = () => adminClient.get("/admin/services").then((r) => r.data.data);
-
+export const getGiftCards = () => adminClient.get("/admin/gift-cards").then((r) => r.data.data);
+export const redeemGiftCard = (id, redeemed) => adminClient.patch(`/admin/gift-cards/${id}/redeem`, { redeemed }).then((r) => r.data);
 export const getQuizMapAdmin = () => adminClient.get("/admin/quiz-map").then((r) => r.data.data);
 export const saveQuizMap = (map) => adminClient.put("/admin/quiz-map", { map }).then((r) => r.data);
 
