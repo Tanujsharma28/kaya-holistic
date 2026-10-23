@@ -12,6 +12,7 @@ const file = process.env.DB_FILE
   : path.join(__dirname, '..', 'data', 'db.json');
 
 fs.mkdirSync(path.dirname(file), { recursive: true });
+export const dbFile = file;
 
 // Pehli baar chalne par services aur quiz settings seed.json se aati hain
 let seed = {};
@@ -38,6 +39,8 @@ db.data.consents ||= [];
 db.data.users ||= [];
 db.data.activity ||= [];
 db.data.giftCards ||= [];
+db.data.trash ||= [];
+db.data.auditLog ||= [];
 
 const SEED_VERSION = seed.settings?.seedVersion || 1;
 if ((db.data.settings.seedVersion || 1) < SEED_VERSION) {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { createCheckoutSession, getAvailability, getServices } from "../api/client";
+import { createCheckoutSession, getAvailabilityInfo, getServices } from "../api/client";
 
 // Testing: VITE_PAYMENTS_PAUSED=true ho to sirf button ka text badalta hai (asli pause backend ke PAYMENTS_PAUSED se hota hai)
 const PAUSED = import.meta.env.VITE_PAYMENTS_PAUSED === "true";
@@ -38,19 +38,21 @@ export default function OnlineConsultation() {
   const [isLoading, setIsLoading] = useState(false);
   const [bookingError, setBookingError] = useState("");
 
-  const isSunday = selectedDate ? new Date(selectedDate + "T12:00:00").getDay() === 0 : false;
+  const [closedMsg, setClosedMsg] = useState("");
 
   useEffect(() => {
-    if (!selectedDate || isSunday) return;
+    if (!selectedDate) return;
     setSlotsLoading(true);
     setSelectedTime("");
-    getAvailability(selectedDate, "virt")
-      .then((data) => {
-        setSlots(Array.isArray(data) && data.length ? data : FALLBACK_SLOTS.map((t) => ({ time: t, available: true })));
+    setClosedMsg("");
+    getAvailabilityInfo(selectedDate, "virt")
+      .then(({ slots: list, closed }) => {
+        setClosedMsg(closed);
+        setSlots(list);
       })
       .catch(() => setSlots(FALLBACK_SLOTS.map((t) => ({ time: t, available: true }))))
       .finally(() => setSlotsLoading(false));
-  }, [selectedDate, isSunday]);
+  }, [selectedDate]);
 
   const handleInputChange = (e) => setDetails({ ...details, [e.target.name]: e.target.value });
 
@@ -59,7 +61,7 @@ export default function OnlineConsultation() {
     setBookingError("");
 
     if (!selectedDate) return setBookingError("Please select a date.");
-    if (isSunday) return setBookingError("We are closed on Sundays. Please select another date.");
+    if (closedMsg) return setBookingError(`${closedMsg}. Please select another date.`);
     if (!selectedTime) return setBookingError("Please select a time slot.");
     if (!details.name || !details.phone) return setBookingError("Please fill in your name and phone number.");
     if (!details.email) return setBookingError("Please enter your email address.");
@@ -142,8 +144,8 @@ export default function OnlineConsultation() {
             <input type="date" min={today} value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} required />
           </div>
 
-          {isSunday ? (
-            <div className="oc-warning">We're closed on Sundays — please pick Mon–Sat.</div>
+          {closedMsg ? (
+            <div className="oc-warning">{closedMsg}. Please pick another date.</div>
           ) : selectedDate ? (
             <div className="oc-field">
               <label>Time {slotsLoading && <span className="oc-loading-label">loading…</span>}</label>
@@ -160,6 +162,9 @@ export default function OnlineConsultation() {
                   </button>
                 ))}
               </div>
+              {!slotsLoading && slots.length === 0 && (
+                <div className="oc-warning" style={{ marginTop: 10 }}>No times available on this date. Please pick another day.</div>
+              )}
             </div>
           ) : null}
 
@@ -184,7 +189,7 @@ export default function OnlineConsultation() {
 
           {bookingError && <div className="oc-error">{bookingError}</div>}
 
-          <button className="oc-btn" type="submit" disabled={isLoading || isSunday}>
+          <button className="oc-btn" type="submit" disabled={isLoading || !!closedMsg}>
             {PAUSED
               ? (isLoading ? "Booking…" : "Book Now (test mode, no payment)")
               : (isLoading ? "Redirecting to secure payment…" : `Pay & Book — ${SERVICE.price}`)}

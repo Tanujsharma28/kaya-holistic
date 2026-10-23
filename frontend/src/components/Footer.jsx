@@ -1,4 +1,19 @@
+import { useEffect, useState } from "react";
+import { getHours } from "../api/client";
+
+const FALLBACK = { lines: ["Mon–Sat: 10AM–6PM", "Sunday: Closed"], closures: [] };
+
 export default function Footer() {
+  const [hours, setHours] = useState(FALLBACK);
+
+  useEffect(() => {
+    let on = true;
+    getHours()
+      .then((h) => { if (on && h?.lines?.length) setHours(h); })
+      .catch(() => {});
+    return () => { on = false; };
+  }, []);
+
   return (
     <footer className="footer">
       <div className="footer-grid">
@@ -15,7 +30,15 @@ export default function Footer() {
         </div>
         <div>
           <h4>Hours</h4>
-          <p>Mon–Sat: 10AM–6PM<br />Sunday: Closed<br />By appointments only</p>
+          <p>
+            {hours.lines.map((l) => (<span key={l}>{l}<br /></span>))}
+            By appointments only
+          </p>
+          {hours.closures?.length > 0 && (
+            <p className="muted" style={{ marginTop: 8 }}>
+              Closed: {hours.closures.map((c) => c.label).join(" · ")}
+            </p>
+          )}
         </div>
         <div>
           <h4>Clients</h4>

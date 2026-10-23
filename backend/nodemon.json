@@ -1,6 +1,5 @@
 {
-  "ignore": [
-    "data/db.json",
-    "data/*.json"
-  ]
+  "watch": ["server.js", "config", "controllers", "routes", "middleware", "utils", "scripts"],
+  "ext": "js,mjs,cjs",
+  "ignore": ["data/*", "data/**", "backups/**"]
 }

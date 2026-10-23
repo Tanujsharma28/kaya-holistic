@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import { adminLogin } from "../../api/adminClient";
+import { adminLogin, adminVerify } from "../../api/adminClient";
 import { useAdminAuth } from "../../context/AdminAuthContext";
 
 export default function AdminLogin() {
@@ -10,28 +10,53 @@ export default function AdminLogin() {
   const [caps, setCaps] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [challenge, setChallenge] = useState(null); // { id, sentTo } jab email code maanga ho
+  const [code, setCode] = useState("");
   const { login, isAuthenticated } = useAdminAuth();
   const navigate = useNavigate();
 
   if (isAuthenticated) return <Navigate to="/admin/dashboard" replace />;
+
+  const finish = (data) => {
+    localStorage.setItem("adminToken", data.token);
+    login(data.token, data.email);
+    navigate("/admin/dashboard");
+  };
 
   const submit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      const data = await adminLogin(email.trim(), password);
-      localStorage.setItem('adminToken', data.token);
-      login(data.token, data.email);
-      navigate("/admin/dashboard");
+      if (!challenge) {
+        const data = await adminLogin(email.trim(), password);
+        if (data.twoFactor) {
+          setChallenge({ id: data.challengeId, sentTo: data.sentTo });
+          setCode("");
+        } else {
+          finish(data);
+        }
+      } else {
+        const data = await adminVerify(challenge.id, code.trim());
+        finish(data);
+      }
     } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          "Cannot reach the server. Make sure the backend is running on port 5000."
-      );
+      const msg = err.response?.data?.message;
+      setError(msg || "Cannot reach the server. Make sure the backend is running on port 5000.");
+      // Code expire ya bahut galat try: wapas password step par
+      if (challenge && err.response && [401, 429].includes(err.response.status) && /expired|Too many/i.test(msg || "")) {
+        setChallenge(null);
+        setPassword("");
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const backToPassword = () => {
+    setChallenge(null);
+    setCode("");
+    setError("");
   };
 
   return (
@@ -68,6 +93,7 @@ export default function AdminLogin() {
         .kl-input input{width:100%;padding:14px 16px;border:1.5px solid var(--line);border-radius:14px;background:#fff;font:inherit;font-size:.95rem;color:var(--ink);outline:none;transition:border-color .2s,box-shadow .2s}
         .kl-input input:focus{border-color:var(--brand);box-shadow:0 0 0 4px rgba(166,124,82,.14)}
         .kl-input input.pw{padding-right:78px}
+        .kl-input input.code{text-align:center;font-size:1.6rem;font-weight:600;letter-spacing:.5em;padding-left:.5em}
         .kl-eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--brand2);font:600 .8rem inherit;font-family:inherit;cursor:pointer;padding:8px 10px;border-radius:8px}
         .kl-eye:hover{background:#f6efe3}
         .kl-hint{font-size:.78rem;color:#b9822b;margin-top:6px}
@@ -79,7 +105,7 @@ export default function AdminLogin() {
         .kl-spin{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;animation:klspin .7s linear infinite}
         @keyframes klspin{to{transform:rotate(360deg)}}
         .kl-foot{margin-top:26px;padding-top:18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:.82rem;color:var(--mut)}
-        .kl-back{color:var(--brand2);font-weight:600;text-decoration:none}
+        .kl-back{color:var(--brand2);font-weight:600;text-decoration:none;background:none;border:0;padding:0;font-family:inherit;font-size:inherit;cursor:pointer}
         .kl-back:hover{text-decoration:underline}
 
         @media (max-width:900px){
@@ -120,62 +146,105 @@ export default function AdminLogin() {
 
       <section className="kl-form-side">
         <form className="kl-card" onSubmit={submit} noValidate={false}>
-          <h2>Welcome back</h2>
-          <p className="kl-sub">Sign in with your admin email to continue.</p>
+          {!challenge ? (
+            <>
+              <h2>Welcome back</h2>
+              <p className="kl-sub">Sign in with your admin email to continue.</p>
+            </>
+          ) : (
+            <>
+              <h2>Check your email</h2>
+              <p className="kl-sub">We sent a 6-digit code to {challenge.sentTo}. It works for 10 minutes.</p>
+            </>
+          )}
 
           <div aria-live="polite">
             {error && <div className="kl-error" role="alert">{error}</div>}
           </div>
 
-          <div className="kl-field">
-            <label htmlFor="kl-email">Email</label>
-            <div className="kl-input">
-              <input
-                id="kl-email"
-                type="email"
-                autoComplete="username"
-                placeholder="you@kayaholisticspa.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoFocus
-              />
-            </div>
-          </div>
+          {!challenge ? (
+            <>
+              <div className="kl-field">
+                <label htmlFor="kl-email">Email</label>
+                <div className="kl-input">
+                  <input
+                    id="kl-email"
+                    type="email"
+                    autoComplete="username"
+                    placeholder="you@kayaholisticspa.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
 
-          <div className="kl-field">
-            <label htmlFor="kl-pw">Password</label>
-            <div className="kl-input">
-              <input
-                id="kl-pw"
-                className="pw"
-                type={show ? "text" : "password"}
-                autoComplete="current-password"
-                placeholder="Your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyUp={(e) => setCaps(e.getModifierState && e.getModifierState("CapsLock"))}
-                required
-              />
-              <button
-                type="button"
-                className="kl-eye"
-                onClick={() => setShow((s) => !s)}
-                aria-label={show ? "Hide password" : "Show password"}
-              >
-                {show ? "Hide" : "Show"}
+              <div className="kl-field">
+                <label htmlFor="kl-pw">Password</label>
+                <div className="kl-input">
+                  <input
+                    id="kl-pw"
+                    className="pw"
+                    type={show ? "text" : "password"}
+                    autoComplete="current-password"
+                    placeholder="Your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyUp={(e) => setCaps(e.getModifierState && e.getModifierState("CapsLock"))}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="kl-eye"
+                    onClick={() => setShow((s) => !s)}
+                    aria-label={show ? "Hide password" : "Show password"}
+                  >
+                    {show ? "Hide" : "Show"}
+                  </button>
+                </div>
+                {caps && <p className="kl-hint">Caps Lock is on.</p>}
+              </div>
+
+              <button className="kl-btn" type="submit" disabled={loading || !email || !password}>
+                {loading && <span className="kl-spin" aria-hidden="true" />}
+                {loading ? "Signing in" : "Sign in"}
               </button>
-            </div>
-            {caps && <p className="kl-hint">Caps Lock is on.</p>}
-          </div>
+            </>
+          ) : (
+            <>
+              <div className="kl-field">
+                <label htmlFor="kl-code">Verification code</label>
+                <div className="kl-input">
+                  <input
+                    id="kl-code"
+                    className="code"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    placeholder="------"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
 
-          <button className="kl-btn" type="submit" disabled={loading || !email || !password}>
-            {loading && <span className="kl-spin" aria-hidden="true" />}
-            {loading ? "Signing in" : "Sign in"}
-          </button>
+              <button className="kl-btn" type="submit" disabled={loading || code.length !== 6}>
+                {loading && <span className="kl-spin" aria-hidden="true" />}
+                {loading ? "Checking" : "Verify and sign in"}
+              </button>
+            </>
+          )}
 
           <div className="kl-foot">
-            <Link className="kl-back" to="/">Back to website</Link>
+            {!challenge ? (
+              <Link className="kl-back" to="/">Back to website</Link>
+            ) : (
+              <button type="button" className="kl-back" onClick={backToPassword}>Use a different account or resend code</button>
+            )}
             <span>Authorized staff only</span>
           </div>
         </form>

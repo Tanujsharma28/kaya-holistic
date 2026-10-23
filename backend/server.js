@@ -16,7 +16,8 @@ import userRoutes from './routes/user.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import giftCardRoutes from './routes/giftcard.routes.js';
 import { notFound, errorHandler, asyncHandler } from './middleware/errorHandler.js';
-
+import { initBackupCron } from './utils/backup.js';
+  import settingsRoutes from './routes/settings.routes.js';
 const isProd = process.env.NODE_ENV === 'production';
 
 // Production me zaroori env vars ke bina start hi mat karo
@@ -92,6 +93,7 @@ app.use('/api/admin/login', rateLimit({
 }));
 
 app.use('/api/services', servicesRoutes);
+  app.use('/api/settings', settingsRoutes);
 app.use('/api/quiz', quizRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/bookings', paymentRoutes);
@@ -114,4 +116,5 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT} (${isProd ? 'production' : 'development'})`);
   initReminderCron();
+  initBackupCron();
 });

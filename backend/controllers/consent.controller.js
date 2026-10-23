@@ -1,7 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import { db } from '../config/db.js';
 import { notifyOwner, sendMail } from '../utils/mailer.js';
-
+import { moveToTrash } from './trash.controller.js';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const esc = (s = '') =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -105,9 +105,10 @@ export const getConsentsAdmin = (req, res) => {
 };
 
 export const deleteConsent = async (req, res) => {
-  const before = (db.data.consents || []).length;
-  db.data.consents = (db.data.consents || []).filter((c) => c.id !== req.params.id);
-  if (db.data.consents.length === before) return res.status(404).json({ success: false, message: 'Not found' });
+  const idx = (db.data.consents || []).findIndex((c) => c.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ success: false, message: 'Not found' });
+  const [removed] = db.data.consents.splice(idx, 1);
+  moveToTrash(req, 'consent', removed);
   await db.write();
   res.json({ success: true });
 };

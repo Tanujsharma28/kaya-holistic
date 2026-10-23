@@ -1,10 +1,47 @@
 import { useMemo, useState } from "react";
 import { money, fmtDate, fmtRange, todayChicago, addDays, whenKey, downloadCsv } from "../util";
 import { StatusBadge, TypePill } from "../ui";
+import AddBookingModal from "../AddBookingModal";
 
 const PAGE = 20;
+const esc = (s = "") => String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 
-export default function Bookings({ bookings = [], initialStatus = "all", open, onPatch, onDelete }) {
+// Kisi ek din ki schedule print / PDF
+function printSchedule(bookings, date) {
+  const list = bookings
+    .filter((b) => b.date === date && String(b.status).toLowerCase() !== "cancelled")
+    .sort((a, b) => whenKey(a).localeCompare(whenKey(b)));
+  if (!list.length) { alert("No appointments on this date."); return; }
+  const w = window.open("", "_blank");
+  if (!w) { alert("Please allow pop-ups to print the schedule."); return; }
+
+  const isVideo = (b) => ["online", "virtual"].includes(String(b.mode).toLowerCase()) || b.type === "consultation";
+  const total = list.reduce((s, b) => s + (b.price || 0), 0);
+  const rows = list.map((b) => `<tr>
+    <td class="t">${esc(fmtRange(b.slot, b.duration))}</td>
+    <td><b>${esc(b.name)}</b><br>${esc(b.phone || "")}</td>
+    <td>${esc(b.serviceName)}<br><span class="m">${isVideo(b) ? "Video call" : "In-person"}</span></td>
+    <td>${esc([b.note, b.adminNote].filter(Boolean).join(" | "))}</td>
+    <td>${esc(b.status)}</td>
+  </tr>`).join("");
+
+  w.document.write(`<html><head><title>Schedule ${esc(date)}</title>
+  <style>body{font-family:Arial,sans-serif;max-width:900px;margin:28px auto;color:#222}h1{font-family:Georgia,serif;margin:0 0 4px}
+  .sub{color:#666;margin-bottom:18px}table{width:100%;border-collapse:collapse}th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#666;border-bottom:2px solid #333;padding:6px 8px}
+  td{padding:9px 8px;font-size:13px;vertical-align:top;border-bottom:1px solid #ddd}td.t{white-space:nowrap;font-weight:600}.m{color:#777;font-size:12px}
+  .foot{margin-top:16px;font-size:13px;color:#444}@media print{body{margin:10mm}}</style></head><body>
+  <h1>Kaya Holistic Spa</h1>
+  <div class="sub">Schedule for ${esc(fmtDate(date, { weekday: "long", month: "long", day: "numeric", year: "numeric" }))}</div>
+  <table><thead><tr><th>Time</th><th>Client</th><th>Service</th><th>Notes</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
+  <div class="foot">${list.length} appointment${list.length === 1 ? "" : "s"} · Total ${esc(money(total))}</div>
+  <script>window.onload=()=>window.print()</script></body></html>`);
+  w.document.close();
+}
+
+export default function Bookings({
+  bookings = [], services = [], customers = [], initialStatus = "all",
+  open, onPatch, onDelete, onCreate, onBulkStatus,
+}) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState(initialStatus);
   const [type, setType] = useState("all");
@@ -12,6 +49,8 @@ export default function Bookings({ bookings = [], initialStatus = "all", open, o
   const [sort, setSort] = useState("created");
   const [page, setPage] = useState(0);
   const [sel, setSel] = useState(new Set());
+  const [adding, setAdding] = useState(false);
+  const [printDate, setPrintDate] = useState(todayChicago());
 
   const today = todayChicago();
   const weekEnd = addDays(today, 6);
@@ -22,8 +61,8 @@ export default function Bookings({ bookings = [], initialStatus = "all", open, o
     const q = search.trim().toLowerCase();
     const list = bookings.filter((b) => {
       if (q && !`${b.name} ${b.email} ${b.phone} ${b.serviceName} ${b.ref}`.toLowerCase().includes(q)) return false;
-      if (status === "needs-update") { 
-        if (!((norm(b.status) === "confirmed" || norm(b.status) === "approved") && b.date < today)) return false; 
+      if (status === "needs-update") {
+        if (!((norm(b.status) === "confirmed" || norm(b.status) === "approved") && b.date < today)) return false;
       }
       else if (status === "confirmed") {
         if (norm(b.status) !== "confirmed" && norm(b.status) !== "approved") return false;
@@ -31,7 +70,7 @@ export default function Bookings({ bookings = [], initialStatus = "all", open, o
       else if (status !== "all" && norm(b.status) !== norm(status)) {
         return false;
       }
-      
+
       if (type !== "all" && b.type !== type) return false;
       if (range === "today" && b.date !== today) return false;
       if (range === "week" && !(b.date >= today && b.date <= weekEnd)) return false;
@@ -54,8 +93,15 @@ export default function Bookings({ bookings = [], initialStatus = "all", open, o
   const togglePage = () => setSel((s) => { const n = new Set(s); rows.forEach((b) => (allOnPage ? n.delete(b.id) : n.add(b.id))); return n; });
 
   const del = async () => {
-    if (!confirm(`Delete ${sel.size} booking(s) permanently? This cannot be undone.`)) return;
+    if (!confirm(`Move ${sel.size} booking(s) to Trash? You can restore them within 30 days.`)) return;
     await onDelete([...sel]);
+    setSel(new Set());
+  };
+
+  const bulk = async (st) => {
+    const word = st === "no-show" ? "no-show" : "completed";
+    if (!confirm(`Mark ${sel.size} selected booking(s) as ${word}? Only confirmed bookings whose date has arrived will change.`)) return;
+    await onBulkStatus([...sel], st);
     setSel(new Set());
   };
 
@@ -97,12 +143,22 @@ export default function Bookings({ bookings = [], initialStatus = "all", open, o
         <button className="adm-btn ghost" onClick={exportCsv} disabled={!filtered.length}>Export CSV</button>
       </div>
 
+      <div className="adm-toolbar">
+        <button className="adm-btn" onClick={() => setAdding(true)}>+ Add booking</button>
+        <span className="adm-row" style={{ gap: 8, marginLeft: "auto" }}>
+          <input className="adm-in" type="date" value={printDate} onChange={(e) => e.target.value && setPrintDate(e.target.value)} aria-label="Schedule date" />
+          <button className="adm-btn ghost" onClick={() => printSchedule(bookings, printDate)}>Print schedule</button>
+        </span>
+      </div>
+
       {sel.size > 0 && (
         <div className="adm-alert">
           <span>{sel.size} selected</span>
           <span className="adm-row">
             <button className="adm-btn ghost sm" onClick={() => setSel(new Set())}>Clear</button>
-            <button className="adm-btn danger sm" onClick={del}>Delete selected</button>
+            <button className="adm-btn sm" onClick={() => bulk("completed")}>Mark completed</button>
+            <button className="adm-btn ghost sm" onClick={() => bulk("no-show")}>Mark no-show</button>
+            <button className="adm-btn danger sm" onClick={del}>Move to Trash</button>
           </span>
         </div>
       )}
@@ -159,6 +215,10 @@ export default function Bookings({ bookings = [], initialStatus = "all", open, o
           <button className="adm-btn ghost sm" disabled={cur >= pages - 1} onClick={() => setPage(cur + 1)}>Next</button>
         </span>
       </div>
+
+      {adding && (
+        <AddBookingModal services={services} customers={customers} onCreate={onCreate} onClose={() => setAdding(false)} />
+      )}
     </>
   );
 }

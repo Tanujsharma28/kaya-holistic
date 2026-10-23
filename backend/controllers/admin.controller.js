@@ -6,6 +6,9 @@ import { hasConflict, durationOf, typeOf, toMinutes, isPast } from '../utils/slo
 import { sendMail } from '../utils/mailer.js';
 import { createMeetEvent, updateMeetEvent, deleteMeetEvent } from '../utils/googleMeet.js';
 import { rescheduleEmail, cancellationEmail, meetLinkEmail, bookingConfirmationEmail } from '../utils/adminEmails.js';
+import { moveToTrash } from './trash.controller.js';
+import { audit } from '../utils/audit.js';
+import { closedReason } from '../utils/settings.js';
 const MEET_RE = /^https?:\/\/[^\s]+$/i;
 
 // Helper function to check if booking is online/video call
@@ -65,6 +68,8 @@ export const login = async (req, res) => {
     return bad(res, 'Invalid credentials', 401);
   }
   attempts.delete(ip);
+  audit({ admin: { email: ADMIN_EMAIL } }, 'login', 'Admin signed in');
+  await db.write();
   const token = jwt.sign({ email: ADMIN_EMAIL, role: 'admin' }, JWT_SECRET, { expiresIn: '12h' });
   res.json({ success: true, token, data: { token, email: ADMIN_EMAIL } });
 };
@@ -149,7 +154,8 @@ export const updateBooking = async (req, res) => {
   if (moved || dateSubmitted) {
     const dt = new Date(newDate + 'T12:00:00');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate) || Number.isNaN(dt.getTime())) return bad(res, 'Invalid date');
-    if (dt.getDay() === 0) return bad(res, 'The spa is closed on Sundays');
+    const closedMsg = closedReason(newDate);
+    if (moved && closedMsg) return bad(res, `${closedMsg}. You can change opening days in Settings.`);
     if (toMinutes(newSlot) === null) return bad(res, 'Invalid time');
     if (moved && isPast(newDate, newSlot)) return bad(res, 'That time has already passed');
   }
@@ -170,6 +176,8 @@ export const updateBooking = async (req, res) => {
   if (meetLink !== undefined) b.meetLink = meetLink.trim();
   const linkChanged = meetLink !== undefined && b.meetLink !== prev.meetLink;
   if (moved || linkChanged) b.reminderSent = false;
+  if (status !== undefined && status !== prev.status) audit(req, 'booking.status', `${b.name}: ${prev.status} → ${b.status} (${b.date} ${b.slot})`);
+  if (moved) audit(req, 'booking.reschedule', `${b.name}: ${prev.date} ${prev.slot} → ${b.date} ${b.slot}`);
   b.updatedAt = new Date().toISOString();
   await db.write();
 
@@ -207,37 +215,46 @@ export const updateBooking = async (req, res) => {
   res.json({ success: true, data: enrich(b), emailed });
 };
 
+// ── Delete (Trash me jaata hai, 30 din tak restore ho sakta hai) ──
 export const deleteBooking = async (req, res) => {
   const idx = db.data.bookings.findIndex((b) => b.id === req.params.id);
   if (idx === -1) return bad(res, 'Booking not found', 404);
   const [removed] = db.data.bookings.splice(idx, 1);
+  const related = db.data.consultations.filter((c) => c.bookingId === removed.id);
   db.data.consultations = db.data.consultations.filter((c) => c.bookingId !== removed.id);
+  const eventId = removed.calendarEventId;
+  removed.calendarEventId = '';
+  moveToTrash(req, 'booking', removed, related);
   await db.write();
-  if (removed.calendarEventId) {
-    deleteMeetEvent(removed.calendarEventId).catch((e) => console.error('Calendar delete failed:', e.message));
-  }
-  res.json({ success: true, message: 'Booking deleted' });
+  if (eventId) deleteMeetEvent(eventId).catch((e) => console.error('Calendar delete failed:', e.message));
+  res.json({ success: true, message: 'Booking moved to Trash' });
 };
 
 export const bulkDeleteBookings = async (req, res) => {
   const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
   if (!ids.length) return bad(res, 'No bookings selected');
   const removed = db.data.bookings.filter((b) => ids.includes(b.id));
+  const eventIds = [];
+  for (const b of removed) {
+    const related = db.data.consultations.filter((c) => c.bookingId === b.id);
+    if (b.calendarEventId) eventIds.push(b.calendarEventId);
+    b.calendarEventId = '';
+    moveToTrash(req, 'booking', b, related);
+  }
   db.data.bookings = db.data.bookings.filter((b) => !ids.includes(b.id));
   db.data.consultations = db.data.consultations.filter((c) => !ids.includes(c.bookingId));
   await db.write();
-  removed.forEach((b) => {
-    if (b.calendarEventId) deleteMeetEvent(b.calendarEventId).catch((e) => console.error('Calendar delete failed:', e.message));
-  });
+  eventIds.forEach((id) => deleteMeetEvent(id).catch((e) => console.error('Calendar delete failed:', e.message)));
   res.json({ success: true, deleted: removed.length });
 };
 
 export const deleteConsultation = async (req, res) => {
   const idx = db.data.consultations.findIndex((c) => c.id === req.params.id);
   if (idx === -1) return bad(res, 'Record not found', 404);
-  db.data.consultations.splice(idx, 1);
+  const [removed] = db.data.consultations.splice(idx, 1);
+  moveToTrash(req, 'consultation', removed);
   await db.write();
-  res.json({ success: true, message: 'Deleted' });
+  res.json({ success: true, message: 'Moved to Trash' });
 };
 
 // ── Services ───────────────────────────────────────────────
@@ -248,7 +265,7 @@ const parseService = (body, base = {}) => {
     if (!n || n.length > 80) return { error: 'Name is required (max 80 characters)' };
     out.name = n;
   }
-   if (body.category !== undefined) {
+  if (body.category !== undefined) {
     const c = String(body.category).trim();
     if (!c || c.length > 40) return { error: 'Category is required (max 40 characters)' };
     out.category = c;
@@ -298,7 +315,7 @@ export const updateService = async (req, res) => {
 
 export const deleteService = async (req, res) => {
   if (req.params.id === 'virt') return bad(res, 'The online consultation service cannot be deleted.');
-    if (Object.values(db.data.settings?.quizMap || {}).includes(req.params.id)) {
+  if (Object.values(db.data.settings?.quizMap || {}).includes(req.params.id)) {
     return bad(res, 'This service is used by a Skin Quiz result. Choose a different service for that result first (Services tab, Skin Quiz results).');
   }
   const idx = db.data.services.findIndex((s) => s.id === req.params.id);
@@ -307,6 +324,7 @@ export const deleteService = async (req, res) => {
   await db.write();
   res.json({ success: true, message: 'Service deleted successfully' });
 };
+
 // Skin Quiz results: kaunsa quiz result kaunsi service dikhaye
 const QUIZ_KEYS = ['advanced', 'anti-aging', 'acne', 'calming', 'signature'];
 

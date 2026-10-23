@@ -3,7 +3,7 @@ import { db } from '../config/db.js';
 import { sendMail, notifyOwner } from '../utils/mailer.js';
 import { hasConflict, toMinutes, typeOf, isPast } from '../utils/slots.js';
 import { createMeetEvent } from '../utils/googleMeet.js';
-
+import { closedReason, slotsFor } from '../utils/settings.js';
 const ADDRESS = '1567 Sherman Avenue, Evanston, IL 60201';
 const PHONE = '847-571-1910';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -30,22 +30,19 @@ export const getAvailability = (req, res) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(date + 'T12:00:00').getTime())) {
     return res.status(400).json({ success: false, message: 'Invalid date' });
   }
-  const day = new Date(date + 'T12:00:00').getDay();
-  if (day === 0) return res.json({ success: true, data: [] });
+
+  // Band din (hafte ka din ya holiday): koi slot nahi, wajah ke saath
+  const closed = closedReason(date);
+  if (closed) return res.json({ success: true, data: [], closed });
 
   // serviceId diya ho to us service ki duration se overlap check hoga
   const svc = req.query.serviceId ? db.data.services.find((x) => x.id === req.query.serviceId) : null;
   const duration = Number(svc?.duration) || 45;
 
-  const slots = [];
-  let hour = 10, min = 0;
-  while (hour < 18) {
-    const label = `${hour > 12 ? hour - 12 : hour}:${min === 0 ? '00' : min} ${hour >= 12 ? 'PM' : 'AM'}`;
-    const taken = isPast(date, label) || hasConflict(db.data, { date, slot: label, duration });
-    slots.push({ time: label, available: !taken });
-    min += 45;
-    if (min >= 60) { min -= 60; hour++; }
-  }
+  const slots = slotsFor(date).map((label) => ({
+    time: label,
+    available: !(isPast(date, label) || hasConflict(db.data, { date, slot: label, duration })),
+  }));
   res.json({ success: true, data: slots });
 };
 
@@ -165,10 +162,11 @@ export const createBooking = async (req, res) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(date + 'T12:00:00').getTime())) {
     return res.status(400).json({ success: false, message: 'Invalid date' });
   }
-  if (new Date(date + 'T12:00:00').getDay() === 0) {
-    return res.status(400).json({ success: false, message: 'The spa is closed on Sundays' });
+    const closedMsg = closedReason(date);
+  if (closedMsg) {
+    return res.status(400).json({ success: false, message: closedMsg });
   }
-    if (toMinutes(slot) === null || !SLOT_LABELS.some((l) => normSlot(l) === normSlot(slot))) {
+    if (toMinutes(slot) === null || !slotsFor(date).some((l) => normSlot(l) === normSlot(slot))) {
     return res.status(400).json({ success: false, message: 'Please choose one of the available time slots' });
   }
   if (isPast(date, slot)) {

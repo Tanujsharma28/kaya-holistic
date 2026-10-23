@@ -26,8 +26,17 @@ adminClient.interceptors.response.use(
 
 export const adminLogin = (email, password) =>
   adminClient.post("/admin/login", { email, password }).then((r) => {
+    if (r.data.twoFactor) {
+      return { twoFactor: true, challengeId: r.data.challengeId, sentTo: r.data.sentTo };
+    }
     const d = r.data.data || r.data;
     return { token: d.token, email: d.email || email };
+  });
+
+export const adminVerify = (challengeId, code) =>
+  adminClient.post("/admin/login/verify", { challengeId, code }).then((r) => {
+    const d = r.data.data || r.data;
+    return { token: d.token, email: d.email };
   });
 
 export const getStats = () => adminClient.get("/admin/stats").then((r) => r.data.data);
@@ -49,5 +58,17 @@ export const getCustomers = () => adminClient.get("/admin/customers").then((r) =
 export const createService = (body) => adminClient.post("/admin/services", body).then((r) => r.data);
 export const updateService = (id, body) => adminClient.patch(`/admin/services/${id}`, body).then((r) => r.data);
 export const deleteService = (id) => adminClient.delete(`/admin/services/${id}`).then((r) => r.data);
-
+export const getTrash = () => adminClient.get("/admin/trash").then((r) => r.data.data);
+export const restoreTrash = (id) => adminClient.post(`/admin/trash/${id}/restore`).then((r) => r.data);
+export const deleteTrashItem = (id) => adminClient.delete(`/admin/trash/${id}`).then((r) => r.data);
+export const getAuditLog = () => adminClient.get("/admin/audit-log").then((r) => r.data.data);
+export const getSettings = () => adminClient.get("/admin/settings").then((r) => r.data.data);
+export const saveSettings = (body) => adminClient.put("/admin/settings", body).then((r) => r.data);
+export const getCustomerMeta = () => adminClient.get("/admin/customer-meta").then((r) => r.data.data);
+export const saveCustomerMeta = (email, body) =>
+  adminClient.put(`/admin/customers/${encodeURIComponent(email)}/meta`, body).then((r) => r.data);
 export default adminClient;
+export const downloadBackup = () => adminClient.get("/admin/backup", { responseType: "blob" });
+
+export const createBookingAdmin = (body) => adminClient.post("/admin/bookings", body).then((r) => r.data);
+export const bulkBookingStatus = (ids, status) => adminClient.post("/admin/bookings/bulk-status", { ids, status }).then((r) => r.data);

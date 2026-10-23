@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { money, fmtDate, fmtRange, to24, from24 } from "./util";
 import { StatusBadge, TypePill } from "./ui";
 
-export default function BookingDrawer({ booking: b, consultations, onClose, onPatch, onDelete }) {
+export default function BookingDrawer({ booking: b, consultations, consents = [], onClose, onPatch, onDelete }) {
   const [note, setNote] = useState(b.adminNote || "");
   const [date, setDate] = useState(b.date);
   const [time, setTime] = useState(to24(b.slot));
@@ -10,6 +10,7 @@ export default function BookingDrawer({ booking: b, consultations, onClose, onPa
   const [meet, setMeet] = useState(b.meetLink || "");
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(null); // { msg, icon }
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const intake = useMemo(
     () =>
@@ -19,6 +20,15 @@ export default function BookingDrawer({ booking: b, consultations, onClose, onPa
     [consultations, b.email, b.id]
   );
 
+  // Is client ka facial consent form file par hai ya nahi
+  const consent = useMemo(
+    () =>
+      (consents || [])
+        .filter((c) => c.bookingId === b.id || c.email?.trim().toLowerCase() === b.email?.trim().toLowerCase())
+        .sort((x, y) => new Date(y.createdAt) - new Date(x.createdAt))[0],
+    [consents, b.email, b.id]
+  );
+
   const normStatus = (b.status || "").toLowerCase();
   const isLive = normStatus === "confirmed" || normStatus === "approved";
   const moved = date !== b.date || (time && from24(time) !== b.slot);
@@ -26,6 +36,17 @@ export default function BookingDrawer({ booking: b, consultations, onClose, onPa
   const run = async (fn) => { setBusy(true); try { return await fn(); } finally { setBusy(false); } };
   const mailNote = (r) => (!notify || !b.email ? "" : r?.emailed === false ? " Email could not be sent." : " Client notified by email.");
   const isVideo = b.mode === "virtual" || b.mode === "online" || (b.type || "").includes("consult");
+
+  const consentLink = `${window.location.origin}/consent?booking=${b.id}`;
+  const copyConsentLink = async () => {
+    try {
+      await navigator.clipboard.writeText(consentLink);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      prompt("Copy this link:", consentLink);
+    }
+  };
 
   // Show a professional success overlay, then close
   const showSuccess = (msg, icon = "✅") => {
@@ -186,6 +207,20 @@ export default function BookingDrawer({ booking: b, consultations, onClose, onPa
           {b.note && <p style={{ marginTop: 8, background: "#fbf3e7", padding: 10, borderRadius: 8 }}>"{b.note}"</p>}
         </div>
 
+        {b.type === "visit" && consent && (
+          <div style={{ background: "#e4f2e4", color: "#2f6b34", borderRadius: 10, padding: "10px 14px", fontSize: ".88rem", marginBottom: 14 }}>
+            ✓ Facial consent form on file ({consent.signedDate ? fmtDate(consent.signedDate, { month: "short", day: "numeric", year: "numeric" }) : new Date(consent.createdAt).toLocaleDateString()})
+          </div>
+        )}
+        {b.type === "visit" && !consent && isLive && (
+          <div style={{ background: "#fff4e0", border: "1px solid #f0d3b7", color: "#7c4422", borderRadius: 10, padding: "12px 14px", fontSize: ".88rem", marginBottom: 14 }}>
+            <b>No facial consent form on file</b> for {b.email}. Ask the client to fill it before the visit.
+            <div style={{ marginTop: 8 }}>
+              <button className="adm-btn ghost sm" onClick={copyConsentLink}>{linkCopied ? "Link copied" : "Copy consent form link"}</button>
+            </div>
+          </div>
+        )}
+
         {intake && (
           <div className="adm-sec">
            <h4>Skin intake</h4>
@@ -258,12 +293,12 @@ export default function BookingDrawer({ booking: b, consultations, onClose, onPa
             className="adm-btn danger"
             disabled={busy}
             onClick={async () => {
-              if (!confirm("Delete this booking permanently? This cannot be undone.")) return;
+              if (!confirm("Move this booking to Trash? You can restore it within 30 days.")) return;
               await run(() => onDelete([b.id]));
               onClose();
             }}
           >
-            Delete booking
+            Move to Trash
           </button>
         </div>
       </aside>

@@ -4,7 +4,7 @@ import { stripe } from '../config/stripe.js';
 import { hasConflict, toMinutes, isPast } from '../utils/slots.js';
 import { SLOT_LABELS, normSlot, finalizeConfirmedBooking } from './booking.controller.js';
 import { handleGiftPaid, handleGiftExpired } from './giftcard.controller.js';
-
+import { closedReason, slotsFor } from '../utils/settings.js';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Abhi sirf $45 wali Virtual Skin Consultation hi payment ke peeche hai.
@@ -36,10 +36,9 @@ export const createCheckoutSession = async (req, res) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(date + 'T12:00:00').getTime())) {
     return res.status(400).json({ success: false, message: 'Invalid date' });
   }
-  if (new Date(date + 'T12:00:00').getDay() === 0) {
-    return res.status(400).json({ success: false, message: 'The spa is closed on Sundays' });
-  }
-  if (toMinutes(slot) === null || !SLOT_LABELS.some((l) => normSlot(l) === normSlot(slot))) {
+  const closedMsg = closedReason(date);
+  if (closedMsg) return res.status(400).json({ success: false, message: closedMsg });
+  if (toMinutes(slot) === null || !slotsFor(date).some((l) => normSlot(l) === normSlot(slot))) {
     return res.status(400).json({ success: false, message: 'Please choose one of the available time slots' });
   }
   if (isPast(date, slot)) {

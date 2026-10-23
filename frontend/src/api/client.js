@@ -30,5 +30,8 @@ export const getGiftBySession = (sessionId) =>
   client.get(`/gift-cards/by-session/${encodeURIComponent(sessionId)}`).then(r => r.data);
 export const submitConsultation = (payload) => client.post("/consultation", payload).then(r => r.data.data);
 export const submitConsent = (payload) => client.post("/consent", payload).then(r => r.data.data);
-
+export const getAvailabilityInfo = (date, serviceId) =>
+  client.get('/bookings/availability', { params: { date, serviceId } })
+    .then(r => ({ slots: r.data.data || [], closed: r.data.closed || '' }));
+export const getHours = () => client.get('/settings/hours').then(r => r.data.data);
 export default client;

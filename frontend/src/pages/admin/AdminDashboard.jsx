@@ -11,6 +11,9 @@ import Services from "./tabs/Services";
 import Consents from "./tabs/Consents";
 import Customers from "./tabs/Customers";
 import GiftCards from "./tabs/GiftCards";
+import Settings from "./tabs/Settings";
+import Trash from "./tabs/Trash";
+import ActivityLog from "./tabs/ActivityLog";
 import BookingDrawer from "./BookingDrawer";
 
 const TABS = [
@@ -22,6 +25,9 @@ const TABS = [
   ["consents", "Consent Forms"],
   ["giftcards", "Gift Cards"],
   ["services", "Services"],
+  ["settings", "Settings"],
+  ["activity", "Activity Log"],
+  ["trash", "Trash"],
 ];
 
 export default function AdminDashboard() {
@@ -43,10 +49,12 @@ export default function AdminDashboard() {
 
   const load = useCallback(async (silent) => {
     try {
-      const [stats, bookings, consultations, services, quizMap, consents, customers, giftCards] = await Promise.all([
-        api.getStats(), api.getAllBookings(), api.getAllConsultations(), api.getServicesAdmin(), api.getQuizMapAdmin(), api.getAllConsents(), api.getCustomers(), api.getGiftCards(),
+      const [stats, bookings, consultations, services, quizMap, consents, customers, giftCards, trash, audit, settings, customerMeta] = await Promise.all([
+        api.getStats(), api.getAllBookings(), api.getAllConsultations(), api.getServicesAdmin(), api.getQuizMapAdmin(),
+        api.getAllConsents(), api.getCustomers(), api.getGiftCards(), api.getTrash(), api.getAuditLog(), api.getSettings(),
+        api.getCustomerMeta(),
       ]);
-      setData({ stats, bookings, consultations, services, quizMap, consents, customers, giftCards });
+      setData({ stats, bookings, consultations, services, quizMap, consents, customers, giftCards, trash, audit, settings, customerMeta });
       setPhase("ready");
     } catch {
       if (!silent) setPhase("error");
@@ -77,20 +85,62 @@ export default function AdminDashboard() {
     run(() => api.updateBooking(id, body), (r) =>
       r?.emailed === true ? "Saved. Client emailed." : r?.emailed === false ? "Saved. Email could not be sent." : "Saved");
   const onDelete = (ids) =>
-    run(() => api.deleteBookings(ids), (r) => `${r.deleted} booking${r.deleted === 1 ? "" : "s"} deleted`);
-  const onDeleteConsult = (id) => run(() => api.deleteConsultation(id), "Intake deleted");
+    run(() => api.deleteBookings(ids), (r) => `${r.deleted} booking${r.deleted === 1 ? "" : "s"} moved to Trash`);
+
+  // Add booking: error modal ke andar dikhana hai, isliye alag se handle
+  const onCreateBooking = async (body) => {
+    try {
+      const r = await api.createBookingAdmin(body);
+      await load(true);
+      say(r?.emailed === true ? "Booking added. Client emailed." : r?.emailed === false ? "Booking added. Email could not be sent." : "Booking added");
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, message: e.response?.data?.message || "Could not add the booking. Please try again." };
+    }
+  };
+
+  const onBulkStatus = (ids, status) =>
+    run(() => api.bulkBookingStatus(ids, status), (r) =>
+      `${r.updated} marked ${status === "no-show" ? "no-show" : "completed"}${r.skipped ? `, ${r.skipped} skipped (not confirmed, or still in the future)` : ""}`);
+
+  const onSaveCustomer = (email, body) => run(() => api.saveCustomerMeta(email, body), "Customer saved");
+  const onSaveSettings = (body) => run(() => api.saveSettings(body), "Settings saved");
+  const onDeleteConsult = (id) => run(() => api.deleteConsultation(id), "Intake moved to Trash");
   const onSaveService = (id, body) => run(() => api.updateService(id, body), "Service saved");
   const onCreateService = (body) => run(() => api.createService(body), "Service added");
   const onDeleteService = (id) => run(() => api.deleteService(id), "Service deleted");
   const onSaveQuizMap = (map) => run(() => api.saveQuizMap(map), "Skin Quiz results saved");
   const onRedeemGift = (id, redeemed) => run(() => api.redeemGiftCard(id, redeemed), redeemed ? "Marked as redeemed" : "Marked as unredeemed");
-  const onDeleteConsent = (id) => run(() => api.deleteConsent(id), "Consent form deleted");
+  const onDeleteConsent = (id) => run(() => api.deleteConsent(id), "Consent form moved to Trash");
+  const onRestore = (id) => run(() => api.restoreTrash(id), "Restored");
+  const onPurge = (id) => run(() => api.deleteTrashItem(id), "Deleted permanently");
 
   const go = (t, p = "all") => { setPreset(p); setTab(t); setOpenId(null); window.scrollTo(0, 0); };
+
+  const doBackup = async () => {
+    try {
+      const r = await api.downloadBackup();
+      const url = URL.createObjectURL(r.data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `kaya-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      say("Backup downloaded");
+    } catch {
+      say("Backup failed. Please try again.", "bad");
+    }
+  };
+
   const doLogout = () => { logout(); navigate("/admin/login"); };
 
   const openBooking = data?.bookings.find((b) => b.id === openId);
-  const titles = { overview: "Welcome back, Puja", bookings: "Bookings", calendar: "Calendar", consultations: "Consultation intakes", customers: "Customers", consents: "Facial consent forms", giftcards: "Gift cards", services: "Services" };
+  const titles = {
+    overview: `Welcome back, ${data?.settings?.ownerName || "Puja"}`,
+    bookings: "Bookings", calendar: "Calendar", consultations: "Consultation intakes",
+    customers: "Customers", consents: "Facial consent forms", giftcards: "Gift cards", services: "Services",
+    settings: "Settings", activity: "Activity log", trash: "Trash",
+  };
 
   return (
     <div className="adm-root">
@@ -132,23 +182,55 @@ export default function AdminDashboard() {
                 <h2>{titles[tab]}</h2>
                 <p className="adm-muted">{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "America/Chicago" })} (Evanston time)</p>
               </div>
-              <button className="adm-btn ghost" onClick={() => load(true).then(() => say("Refreshed"))}>Refresh</button>
+              <div className="adm-row" style={{ gap: 8 }}>
+                <button className="adm-btn ghost" onClick={doBackup}>Download backup</button>
+                <button className="adm-btn ghost" onClick={() => load(true).then(() => say("Refreshed"))}>Refresh</button>
+              </div>
             </div>
 
             {tab === "overview" && <Overview stats={data.stats} go={go} open={setOpenId} />}
             {tab === "bookings" && (
-              <Bookings key={preset} initialStatus={preset} bookings={data.bookings} open={setOpenId} onPatch={onPatch} onDelete={onDelete} />
+              <Bookings
+                key={preset}
+                initialStatus={preset}
+                bookings={data.bookings}
+                services={data.services}
+                customers={data.customers}
+                open={setOpenId}
+                onPatch={onPatch}
+                onDelete={onDelete}
+                onCreate={onCreateBooking}
+                onBulkStatus={onBulkStatus}
+              />
             )}
             {tab === "calendar" && <CalendarView bookings={data.bookings} open={setOpenId} />}
             {tab === "consultations" && (
               <Consultations consultations={data.consultations} bookings={data.bookings} onDelete={onDeleteConsult} />
             )}
-            {tab === "customers" && <Customers customers={data.customers} />}
+            {tab === "customers" && (
+              <Customers
+                customers={data.customers}
+                bookings={data.bookings}
+                consents={data.consents}
+                meta={data.customerMeta}
+                onSaveMeta={onSaveCustomer}
+              />
+            )}
             {tab === "consents" && <Consents consents={data.consents} onDelete={onDeleteConsent} />}
             {tab === "giftcards" && <GiftCards cards={data.giftCards} onRedeem={onRedeemGift} />}
             {tab === "services" && (
               <Services services={data.services} bookings={data.bookings} quizMap={data.quizMap} onSave={onSaveService} onCreate={onCreateService} onDelete={onDeleteService} onSaveQuizMap={onSaveQuizMap} />
             )}
+            {tab === "settings" && (
+              <Settings
+                key={JSON.stringify(data.settings)}
+                settings={data.settings}
+                bookings={data.bookings}
+                onSave={onSaveSettings}
+              />
+            )}
+            {tab === "activity" && <ActivityLog entries={data.audit} />}
+            {tab === "trash" && <Trash items={data.trash} onRestore={onRestore} onPurge={onPurge} />}
           </>
         )}
       </main>
@@ -158,6 +240,7 @@ export default function AdminDashboard() {
           key={openBooking.id}
           booking={openBooking}
           consultations={data.consultations}
+          consents={data.consents}
           onClose={() => setOpenId(null)}
           onPatch={onPatch}
           onDelete={onDelete}
