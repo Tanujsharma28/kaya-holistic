@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import GiftCertificate from "../components/GiftCertificate";
 import { createGiftCheckout } from "../api/client";
 
 const AMOUNTS = [100, 150];
 
 const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Sacramento&display=swap');
 .gp{min-height:100vh;background:#faf7f2;padding:120px 5vw 80px;font-family:"DM Sans",sans-serif;color:#2b2016}
 .gp-in{max-width:1120px;margin:0 auto}
 .gp h1{font-size:clamp(2rem,4.5vw,3rem);margin:0 0 10px}
@@ -29,6 +30,8 @@ const CSS = `
 .gp-f em{font-style:normal;font-weight:400;color:#8a7d6e}
 .gp-i{border:1.5px solid #ddd3c2;border-radius:10px;padding:11px 12px;font:inherit;font-weight:400;background:#fff;color:#2b2016;width:100%}
 textarea.gp-i{resize:vertical;min-height:84px}
+.gp-msg{font-family:Sacramento,cursive;font-size:1.5rem;line-height:1.3;color:#3c5a1c;min-height:84px}
+.gp-msg::placeholder{font-family:Sacramento,cursive;font-size:1.5rem;color:#a39a8c;opacity:.85}
 .gp-hint{font-size:.82rem;color:#8a7d6e;margin:-4px 0 12px}
 .gp-btn{width:100%;border:0;border-radius:99px;background:#4c7124;color:#fff;padding:15px 24px;font:inherit;font-weight:600;font-size:1rem;cursor:pointer;margin-top:6px}
 .gp-btn:hover{background:#3c5a1c}.gp-btn:disabled{opacity:.6;cursor:default}
@@ -38,6 +41,7 @@ textarea.gp-i{resize:vertical;min-height:84px}
 `;
 
 export default function GiftCards() {
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const first = Number(params.get("amount"));
   const [amount, setAmount] = useState(AMOUNTS.includes(first) ? first : 100);
@@ -51,8 +55,12 @@ export default function GiftCards() {
     setErr("");
     setBusy(true);
     try {
-      const { url } = await createGiftCheckout({ amount, ...f });
-      window.location.href = url;
+      const data = await createGiftCheckout({ amount, ...f });
+      if (data?.paused && data.gift) {
+        navigate("/gift-confirmation", { state: { gift: data.gift } });
+        return;
+      }
+      window.location.href = data.url;
     } catch (ex) {
       setErr(ex?.response?.data?.message || "Could not start payment. Please try again.");
       setBusy(false);
@@ -97,7 +105,7 @@ export default function GiftCards() {
               </div>
               <p className="gp-hint">Add their email and we send the gift card to them too. Leave it empty to forward it yourself.</p>
               <label className="gp-f">Message <em>(optional)</em>
-                <textarea className="gp-i" maxLength={300} value={f.message} onChange={set("message")} placeholder="Happy birthday, you deserve this." />
+                <textarea className="gp-i gp-msg" maxLength={300} value={f.message} onChange={set("message")} placeholder="Happy birthday, you deserve this." />
               </label>
             </fieldset>
 

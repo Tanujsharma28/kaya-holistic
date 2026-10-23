@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import GiftCertificate from "../components/GiftCertificate";
 import { getGiftBySession } from "../api/client";
 
@@ -27,8 +27,10 @@ export default function GiftConfirmation() {
   const [params] = useSearchParams();
   const sessionId = params.get("session_id");
   const navigate = useNavigate();
-  const [gift, setGift] = useState(null);
-  const [status, setStatus] = useState(sessionId ? "polling" : "none");
+  const location = useLocation();
+  const pausedGift = location.state?.gift; // payment pause mode se aaya gift (Stripe ke bina)
+  const [gift, setGift] = useState(pausedGift || null);
+  const [status, setStatus] = useState(pausedGift ? "ready" : sessionId ? "polling" : "none");
   const [msg, setMsg] = useState("");
 
   useEffect(() => {

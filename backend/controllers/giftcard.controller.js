@@ -6,6 +6,7 @@ import { sendMail, notifyOwner } from '../utils/mailer.js';
 import { giftBuyerEmail, giftRecipientEmail, giftOwnerEmail } from '../utils/giftEmails.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PAYMENTS_PAUSED = () => process.env.PAYMENTS_PAUSED === 'true';
 
 export const GIFT_AMOUNTS = [100, 150];
 const VALID_MONTHS = 6;
@@ -68,6 +69,25 @@ export const createGiftCheckout = async (req, res) => {
   db.data.giftCards ||= [];
   db.data.giftCards.push(gift);
   await db.write();
+
+  // ── PAUSE MODE: payment ke bina seedha confirm aur email bhej do ──
+  if (PAYMENTS_PAUSED()) {
+    gift.status = 'paid';
+    gift.paidAt = now.toISOString();
+    gift.paymentSkipped = true; // admin ko pata rahe ki is gift card ka payment nahi liya gaya (test)
+    await db.write();
+
+    const sendRecipient = gift.recipientEmail && gift.recipientEmail.toLowerCase() !== gift.buyerEmail.toLowerCase();
+    const jobs = [
+      sendMail({ to: gift.buyerEmail, ...giftBuyerEmail(gift) }),
+      notifyOwner(giftOwnerEmail(gift)),
+    ];
+    if (sendRecipient) jobs.push(sendMail({ to: gift.recipientEmail, ...giftRecipientEmail(gift) }));
+    const results = await Promise.allSettled(jobs);
+    results.forEach((r) => r.status === 'rejected' && console.error('Gift email error:', r.reason?.message));
+
+    return res.status(201).json({ success: true, data: { paused: true, gift: publicView(gift) } });
+  }
 
   try {
     const session = await stripe.checkout.sessions.create({
