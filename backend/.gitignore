@@ -4,3 +4,4 @@ dist
 build
 
 data/db.json
+data/backups/
