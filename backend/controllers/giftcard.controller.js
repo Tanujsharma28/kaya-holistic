@@ -4,13 +4,13 @@ import { db } from '../config/db.js';
 import { stripe } from '../config/stripe.js';
 import { sendMail, notifyOwner } from '../utils/mailer.js';
 import { giftBuyerEmail, giftRecipientEmail, giftOwnerEmail } from '../utils/giftEmails.js';
-
+import { lookupGift } from '../utils/giftRedeem.js';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PAYMENTS_PAUSED = () => process.env.PAYMENTS_PAUSED === 'true';
 
 export const GIFT_AMOUNTS = [100, 150];
 const VALID_MONTHS = 6;
-const HOLD_MINUTES = 30;
+const HOLD_MINUTES = 31;
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const randChunk = (n) => Array.from(crypto.randomBytes(n), (b) => ALPHABET[b % ALPHABET.length]).join('');
@@ -92,7 +92,6 @@ export const createGiftCheckout = async (req, res) => {
   try {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
-      payment_method_types: ['card'],
       customer_email: buyerEmail,
       line_items: [{
         price_data: {
@@ -119,6 +118,16 @@ export const createGiftCheckout = async (req, res) => {
     console.error('Gift card Stripe session error:', err.message);
     res.status(502).json({ success: false, message: 'Could not start payment. Please try again in a moment.' });
   }
+};
+// Gift card code check (balance kaatta nahi)
+export const checkGiftCode = (req, res) => {
+  const { code, date } = req.body || {};
+  if (typeof code !== 'string' || !code.trim()) {
+    return res.status(400).json({ success: false, message: 'Please enter your gift card code.' });
+  }
+  const r = lookupGift(db.data.giftCards, code, typeof date === 'string' ? date : undefined);
+  if (!r.ok) return res.status(404).json({ success: false, message: r.message });
+  res.json({ success: true, data: { code: r.gift.code, balance: r.balance, expiresAt: r.gift.expiresAt } });
 };
 
 // 2) Success page

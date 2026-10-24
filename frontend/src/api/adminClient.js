@@ -67,6 +67,13 @@ export const saveSettings = (body) => adminClient.put("/admin/settings", body).t
 export const getCustomerMeta = () => adminClient.get("/admin/customer-meta").then((r) => r.data.data);
 export const saveCustomerMeta = (email, body) =>
   adminClient.put(`/admin/customers/${encodeURIComponent(email)}/meta`, body).then((r) => r.data);
+export const createGiftCard = (body) => adminClient.post("/admin/gift-cards", body).then((r) => r.data);
+export const spendGiftCard = (id, body) => adminClient.post(`/admin/gift-cards/${id}/use`, body).then((r) => r.data);
+export const undoGiftUse = (id, rid) => adminClient.delete(`/admin/gift-cards/${id}/uses/${rid}`).then((r) => r.data);
+export const extendGiftCard = (id, expiresOn) => adminClient.patch(`/admin/gift-cards/${id}`, { expiresOn }).then((r) => r.data);
+export const resendGiftCard = (id, to) => adminClient.post(`/admin/gift-cards/${id}/resend`, { to }).then((r) => r.data);
+export const voidGiftCard = (id, makeVoid) => adminClient.post(`/admin/gift-cards/${id}/void`, { void: makeVoid }).then((r) => r.data);
+export const testNotification = (type) => adminClient.post("/admin/notifications/test", { type }).then((r) => r.data);
 export default adminClient;
 export const downloadBackup = () => adminClient.get("/admin/backup", { responseType: "blob" });
 

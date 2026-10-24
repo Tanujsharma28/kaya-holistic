@@ -103,14 +103,35 @@ export default function AdminDashboard() {
     run(() => api.bulkBookingStatus(ids, status), (r) =>
       `${r.updated} marked ${status === "no-show" ? "no-show" : "completed"}${r.skipped ? `, ${r.skipped} skipped (not confirmed, or still in the future)` : ""}`);
 
+  // Gift cards
+  const onCreateGift = async (body) => {
+    try {
+      const r = await api.createGiftCard(body);
+      await load(true);
+      say(r?.emailed === true ? "Gift card created and emailed" : r?.emailed === false ? "Gift card created. Email could not be sent." : "Gift card created");
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, message: e.response?.data?.message || "Could not create the gift card. Please try again." };
+    }
+  };
+  const usd = (n) => `$${Number.isInteger(Number(n)) ? Number(n) : Number(n).toFixed(2)}`;
+  const onSpendGift = (id, body) =>
+    run(() => api.spendGiftCard(id, body), (r) => (r?.data?.balance > 0 ? `Done. ${usd(r.data.balance)} left on this card` : "Gift card fully used"));
+  const onUndoGift = (id, rid) => run(() => api.undoGiftUse(id, rid), "Redemption undone");
+  const onExtendGift = (id, date) => run(() => api.extendGiftCard(id, date), "Validity updated");
+  const onResendGift = (id, to) =>
+    run(() => api.resendGiftCard(id, to), (r) => (r?.emailed ? "Gift card emailed" : "Email could not be sent"));
+  const onVoidGift = (id, makeVoid) => run(() => api.voidGiftCard(id, makeVoid), makeVoid ? "Gift card voided" : "Gift card restored");
+
   const onSaveCustomer = (email, body) => run(() => api.saveCustomerMeta(email, body), "Customer saved");
   const onSaveSettings = (body) => run(() => api.saveSettings(body), "Settings saved");
+    const onTestNotify = (type) =>
+    run(() => api.testNotification(type), (r) => (r?.emailed ? `Test email sent to ${r.sentTo}` : "Could not send the test email"));
   const onDeleteConsult = (id) => run(() => api.deleteConsultation(id), "Intake moved to Trash");
   const onSaveService = (id, body) => run(() => api.updateService(id, body), "Service saved");
   const onCreateService = (body) => run(() => api.createService(body), "Service added");
   const onDeleteService = (id) => run(() => api.deleteService(id), "Service deleted");
   const onSaveQuizMap = (map) => run(() => api.saveQuizMap(map), "Skin Quiz results saved");
-  const onRedeemGift = (id, redeemed) => run(() => api.redeemGiftCard(id, redeemed), redeemed ? "Marked as redeemed" : "Marked as unredeemed");
   const onDeleteConsent = (id) => run(() => api.deleteConsent(id), "Consent form moved to Trash");
   const onRestore = (id) => run(() => api.restoreTrash(id), "Restored");
   const onPurge = (id) => run(() => api.deleteTrashItem(id), "Deleted permanently");
@@ -188,7 +209,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {tab === "overview" && <Overview stats={data.stats} go={go} open={setOpenId} />}
+                       {tab === "overview" && <Overview stats={data.stats} bookings={data.bookings} giftCards={data.giftCards} go={go} open={setOpenId} />}
             {tab === "bookings" && (
               <Bookings
                 key={preset}
@@ -217,7 +238,17 @@ export default function AdminDashboard() {
               />
             )}
             {tab === "consents" && <Consents consents={data.consents} onDelete={onDeleteConsent} />}
-            {tab === "giftcards" && <GiftCards cards={data.giftCards} onRedeem={onRedeemGift} />}
+            {tab === "giftcards" && (
+              <GiftCards
+                cards={data.giftCards}
+                onCreate={onCreateGift}
+                onSpend={onSpendGift}
+                onUndo={onUndoGift}
+                onExtend={onExtendGift}
+                onResend={onResendGift}
+                onVoid={onVoidGift}
+              />
+            )}
             {tab === "services" && (
               <Services services={data.services} bookings={data.bookings} quizMap={data.quizMap} onSave={onSaveService} onCreate={onCreateService} onDelete={onDeleteService} onSaveQuizMap={onSaveQuizMap} />
             )}
@@ -227,6 +258,7 @@ export default function AdminDashboard() {
                 settings={data.settings}
                 bookings={data.bookings}
                 onSave={onSaveSettings}
+                onTest={onTestNotify}
               />
             )}
             {tab === "activity" && <ActivityLog entries={data.audit} />}

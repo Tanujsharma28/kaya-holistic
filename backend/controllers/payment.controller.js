@@ -5,6 +5,7 @@ import { hasConflict, toMinutes, isPast } from '../utils/slots.js';
 import { SLOT_LABELS, normSlot, finalizeConfirmedBooking } from './booking.controller.js';
 import { handleGiftPaid, handleGiftExpired } from './giftcard.controller.js';
 import { closedReason, slotsFor } from '../utils/settings.js';
+import { lookupGift, splitPayment, spendGift, releaseGift } from '../utils/giftRedeem.js';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Abhi sirf $45 wali Virtual Skin Consultation hi payment ke peeche hai.
@@ -12,19 +13,19 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PAYABLE_SERVICE_ID = 'virt';
 
 // Checkout session ka valid time — itni der tak slot "pending-payment" rehke hold rahega.
-const HOLD_MINUTES = 20;
+const HOLD_MINUTES = 31;
 const PAYMENTS_PAUSED = () => process.env.PAYMENTS_PAUSED === 'true';
 
 // ─── 1) Booking draft banao (slot hold) + Stripe Checkout session banao ───
 export const createCheckoutSession = async (req, res) => {
-  const { serviceId, date, slot, name, email, phone, note } = req.body || {};
+  let { serviceId, date, slot, name, email, phone, note, giftCode } = req.body || {};
 
   if (!serviceId || !date || !slot || !name || !email) {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
   }
   const isStr = (v) => typeof v === 'string';
   if (![serviceId, date, slot, name, email].every(isStr)
-    || [phone, note].some((v) => v !== undefined && v !== null && !isStr(v))) {
+    || [phone, note, giftCode].some((v) => v !== undefined && v !== null && !isStr(v))) {
     return res.status(400).json({ success: false, message: 'Invalid input' });
   }
   if (serviceId !== PAYABLE_SERVICE_ID) {
@@ -41,6 +42,7 @@ export const createCheckoutSession = async (req, res) => {
   if (toMinutes(slot) === null || !slotsFor(date).some((l) => normSlot(l) === normSlot(slot))) {
     return res.status(400).json({ success: false, message: 'Please choose one of the available time slots' });
   }
+  slot = slotsFor(date).find((l) => normSlot(l) === normSlot(slot)); // canonical label
   if (isPast(date, slot)) {
     return res.status(400).json({ success: false, message: 'That time has already passed. Please pick a later slot.' });
   }
@@ -83,6 +85,17 @@ export const createCheckoutSession = async (req, res) => {
     return res.status(201).json({ success: true, data: { paused: true, bookingId: booking.id, booking, service } });
   }
 
+  // ── Gift card code (optional) ──
+  let gift = null;
+  let giftAmount = 0;
+  let toPay = Number(service.price);
+  if (typeof giftCode === 'string' && giftCode.trim()) {
+    const r = lookupGift(db.data.giftCards, giftCode, date);
+    if (!r.ok) return res.status(400).json({ success: false, message: r.message });
+    gift = r.gift;
+    ({ giftAmount, toPay } = splitPayment(service.price, r.balance));
+  }
+
   // Pehle slot hold karo (status pending-payment), taaki koi aur isi slot pe
   // payment karte waqt book na kar sake.
   const booking = {
@@ -103,21 +116,40 @@ export const createCheckoutSession = async (req, res) => {
     createdAt: new Date().toISOString(),
   };
 
+  if (gift) {
+    // Gift card ka paisa abhi hold (kaat) lete hain, payment fail/expire hone par wapas mil jaata hai
+    const used = spendGift(gift, giftAmount, { note: `Online consultation ${date}`, by: 'website', bookingId: booking.id });
+    booking.giftCardId = gift.id;
+    booking.giftCode = gift.code;
+    booking.giftAmount = used;
+    toPay = Math.round((Number(service.price) - used) * 100) / 100;
+  }
+
+  // Gift card ne poora price cover kar diya: Stripe ki zarurat nahi, seedha confirm
+  if (gift && toPay <= 0) {
+    booking.status = 'confirmed';
+    booking.paidAt = new Date().toISOString();
+    booking.amountPaid = 0;
+    db.data.bookings.push(booking);
+    await db.write();
+    await finalizeConfirmedBooking(booking, service);
+    return res.status(201).json({ success: true, data: { free: true, bookingId: booking.id, booking, service } });
+  }
+
   db.data.bookings.push(booking);
   await db.write();
 
   try {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
-      payment_method_types: ['card'],
       customer_email: booking.email,
       line_items: [{
         price_data: {
           currency: 'usd',
-          unit_amount: Math.round(Number(service.price) * 100),
+          unit_amount: Math.round(toPay * 100),
           product_data: {
             name: service.name,
-            description: `${service.duration} min online video consultation on ${date} at ${slot}`,
+            description: `${service.duration} min online video consultation on ${date} at ${slot}${gift ? ` (gift card -$${booking.giftAmount} applied)` : ''}`,
           },
         },
         quantity: 1,
@@ -135,6 +167,7 @@ export const createCheckoutSession = async (req, res) => {
   } catch (err) {
     // Stripe session nahi bana, toh hold kiya hua slot turant chhod do
     db.data.bookings = db.data.bookings.filter((b) => b.id !== booking.id);
+    releaseGift(db.data.giftCards, booking.id);
     await db.write();
     console.error('Stripe checkout session banane me error:', err.message);
     res.status(502).json({ success: false, message: 'Could not start payment. Please try again in a moment.' });
@@ -192,6 +225,7 @@ export const stripeWebhook = async (req, res) => {
         // Bohot hi rare race-condition: isi slot pe koi aur beech me book ho gaya ho.
         if (hasConflict(db.data, { date: booking.date, slot: booking.slot, duration: booking.duration, ignoreId: booking.id })) {
           booking.status = 'cancelled';
+          releaseGift(db.data.giftCards, booking.id);
           await db.write();
           try {
             await stripe.refunds.create({ payment_intent: session.payment_intent });
@@ -212,6 +246,7 @@ export const stripeWebhook = async (req, res) => {
       // Payment complete nahi hua — hold kiya hua slot chhod do
       const idx = db.data.bookings.findIndex((b) => b.id === bookingId && b.status === 'pending-payment');
       if (idx !== -1) {
+        releaseGift(db.data.giftCards, db.data.bookings[idx].id);
         db.data.bookings.splice(idx, 1);
         await db.write();
       }

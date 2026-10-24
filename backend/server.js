@@ -34,7 +34,9 @@ if (isProd && String(process.env.JWT_SECRET).length < 32) {
   console.error('❌ JWT_SECRET must be at least 32 characters in production');
   process.exit(1);
 }
-
+if (isProd && PAYMENTS_PAUSED) {
+  console.warn('⚠️  PAYMENTS_PAUSED=true in production: consultations will be booked WITHOUT payment. Remove it before going live.');
+}
 const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
@@ -75,6 +77,10 @@ app.post('/api/bookings/checkout', rateLimit({
 app.post('/api/gift-cards/checkout', rateLimit({
   windowMs: 60 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false,
   message: { success: false, message: 'Too many payment attempts. Please try again later.' },
+}));
+app.post('/api/gift-cards/check', rateLimit({
+  windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false,
+  message: { success: false, message: 'Too many attempts. Please try again in a few minutes.' },
 }));
 app.post('/api/consultation', rateLimit({
   windowMs: 60 * 60 * 1000, limit: 15, standardHeaders: true, legacyHeaders: false,

@@ -47,6 +47,7 @@ if ((db.data.settings.seedVersion || 1) < SEED_VERSION) {
   for (const s of seed.services || []) {
     const cur = db.data.services.find((x) => x.id === s.id);
     if (!cur) db.data.services.push({ ...s });
+    else if (cur.userEdited) continue; 
     else Object.assign(cur, { name: s.name, price: s.price, duration: s.duration, category: s.category, desc: s.desc, popular: !!s.popular });
   }
   db.data.settings.quizMap = { ...defaultQuizMap };

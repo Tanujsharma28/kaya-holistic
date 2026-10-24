@@ -309,6 +309,7 @@ export const updateService = async (req, res) => {
   const { error, value } = parseService(req.body || {}, s);
   if (error) return bad(res, error);
   Object.assign(s, value);
+    s.userEdited = true; // seedVersion badhne par bhi ye service overwrite nahi hogi
   await db.write();
   res.json({ success: true, data: s });
 };
@@ -343,6 +344,7 @@ export const updateQuizMap = async (req, res) => {
     next[key] = id;
   }
   db.data.settings.quizMap = next;
+    db.data.settings.quizMapEdited = true; // seed update ise overwrite nahi karega
   await db.write();
   res.json({ success: true, data: next });
 };

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { createCheckoutSession, getAvailabilityInfo, getServices } from "../api/client";
-
+import { createCheckoutSession, getAvailabilityInfo, getServices, checkGiftCode } from "../api/client";
 // Testing: VITE_PAYMENTS_PAUSED=true ho to sirf button ka text badalta hai (asli pause backend ke PAYMENTS_PAUSED se hota hai)
 const PAUSED = import.meta.env.VITE_PAYMENTS_PAUSED === "true";
 
@@ -37,6 +36,29 @@ export default function OnlineConsultation() {
   const [isBooked, setIsBooked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [bookingError, setBookingError] = useState("");
+    // Gift card code
+  const [giftInput, setGiftInput] = useState("");
+  const [gift, setGift] = useState(null);
+  const [giftMsg, setGiftMsg] = useState("");
+  const [giftBusy, setGiftBusy] = useState(false);
+  const money = (n) => `$${Number.isInteger(n) ? n : n.toFixed(2)}`;
+  const priceNum = Number(String(SERVICE.price).replace(/[^0-9.]/g, "")) || 0;
+  const giftUse = gift ? Math.min(gift.balance, priceNum) : 0;
+  let toPay = Math.round((priceNum - giftUse) * 100) / 100;
+  if (toPay > 0 && toPay < 0.5) toPay = 0.5; // Stripe ka minimum 50 cents
+  const applyGift = async () => {
+    setGiftMsg("");
+    setGiftBusy(true);
+    try {
+      setGift(await checkGiftCode(giftInput, selectedDate || undefined));
+    } catch (err) {
+      setGift(null);
+      setGiftMsg(err?.response?.data?.message || "Could not check the code. Please try again.");
+    } finally {
+      setGiftBusy(false);
+    }
+  };
+  const removeGift = () => { setGift(null); setGiftInput(""); setGiftMsg(""); };
 
   const [closedMsg, setClosedMsg] = useState("");
 
@@ -79,8 +101,9 @@ export default function OnlineConsultation() {
         email: details.email,
         phone: details.phone,
         note: details.notes,
+        giftCode: gift?.code,
       });
-      if (res?.paused && res.booking) {
+      if ((res?.paused || res?.free) && res.booking) {
         // Payment pause mode: booking seedha confirm ho gayi, Confirmation page pe bhej do
         navigate("/confirmation", { state: { booking: res.booking, service: res.service } });
         return;
@@ -186,13 +209,38 @@ export default function OnlineConsultation() {
             <label>Anything Puja should know? (optional)</label>
             <textarea rows="3" name="notes" placeholder="Skin concerns, allergies, etc." value={details.notes} onChange={handleInputChange} />
           </div>
-
+          <div className="oc-field">
+            <label>Gift card code (optional)</label>
+            {gift ? (
+              <div className="oc-gift-ok">
+                <span>✓ {gift.code} applied · balance {money(gift.balance)}</span>
+                <button type="button" className="oc-link" onClick={removeGift}>Remove</button>
+              </div>
+            ) : (
+              <div className="oc-gift-row">
+                <input
+                  type="text"
+                  placeholder="KAYA-XXXX-XXXX"
+                  value={giftInput}
+                  onChange={(e) => setGiftInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (giftInput.trim() && !giftBusy) applyGift(); } }}
+                />
+                <button type="button" className="oc-btn-sm" onClick={applyGift} disabled={giftBusy || !giftInput.trim()}>
+                  {giftBusy ? "Checking…" : "Apply"}
+                </button>
+              </div>
+            )}
+            {giftMsg && <div className="oc-error">{giftMsg}</div>}
+            {gift && <div className="oc-gift-sum">Gift card: −{money(giftUse)} · To pay: {money(toPay)}</div>}
+          </div>
           {bookingError && <div className="oc-error">{bookingError}</div>}
 
           <button className="oc-btn" type="submit" disabled={isLoading || !!closedMsg}>
             {PAUSED
               ? (isLoading ? "Booking…" : "Book Now (test mode, no payment)")
-              : (isLoading ? "Redirecting to secure payment…" : `Pay & Book — ${SERVICE.price}`)}
+                           : gift && toPay <= 0
+                ? (isLoading ? "Booking…" : "Book with Gift Card")
+                : (isLoading ? "Redirecting to secure payment…" : `Pay & Book — ${gift ? money(toPay) : SERVICE.price}`)}
           </button>
           <p className="oc-secure-note">
             {PAUSED ? "Test mode: no payment is taken right now." : "🔒 Secure payment via Stripe. Your slot is held while you pay."}
@@ -230,5 +278,12 @@ const OC_CSS = `
 .oc-success-icon { font-size: 2.2rem; color: #2D3A31; margin-bottom: 16px; }
 .oc-success-card h2 { font-family: Fraunces, Georgia, serif; margin: 0 0 12px; }
 .oc-success-card p { color: #5C554F; line-height: 1.6; margin-bottom: 24px; }
+.oc-gift-row { display: flex; gap: 8px; }
+.oc-gift-row input { flex: 1; text-transform: uppercase; }
+.oc-btn-sm { background: #241A13; color: #fff; border: none; padding: 0 18px; border-radius: 10px; font-weight: 600; cursor: pointer; }
+.oc-btn-sm:disabled { background: #D9D2CB; cursor: not-allowed; }
+.oc-gift-ok { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: #F1F8F2; border: 1px solid #CFE6D3; border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; color: #2D5A3A; }
+.oc-link { background: none; border: none; color: #7C5C38; text-decoration: underline; cursor: pointer; font-size: 0.85rem; }
+.oc-gift-sum { font-size: 0.85rem; color: #4a3b2c; }
 @media (max-width: 600px) { .oc-grid-2 { grid-template-columns: 1fr; } }
 `;

@@ -71,7 +71,7 @@ const codeBlock = (code) => `
     </td></tr>
   </table>`;
 
-const howTo = `Book any service at Kaya Holistic Spa and mention this code when you arrive, or text us at <a href="tel:${PHONE}" style="color:${GREEN};font-weight:600;text-decoration:none;">${PHONE}</a>.`;
+const howTo = `Booking an online consultation? Enter this code on the booking page. For a spa visit, mention this code when you arrive, or text us at <a href="tel:${PHONE}" style="color:${GREEN};font-weight:600;text-decoration:none;">${PHONE}</a>.`;
 
 export const giftBuyerEmail = (g) => {
   const sentToRecipient = g.recipientEmail && g.recipientEmail.toLowerCase() !== g.buyerEmail.toLowerCase();
