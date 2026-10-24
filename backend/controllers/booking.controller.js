@@ -145,7 +145,7 @@ ${b.note ? r('Client note', `<i>${esc(b.note)}</i>`) : ''}
 
 // ─── Create booking ───
 export const createBooking = async (req, res) => {
-  const { serviceId, date, slot, name, email, phone, note, addOns = [], mode = 'in-person', videoLink = '', type } = req.body || {};
+  let { serviceId, date, slot, name, email, phone, note, addOns = [], mode = 'in-person', videoLink = '', type } = req.body || {};
 
   if (!serviceId || !date || !slot || !name || !email) {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -169,6 +169,8 @@ export const createBooking = async (req, res) => {
     if (toMinutes(slot) === null || !slotsFor(date).some((l) => normSlot(l) === normSlot(slot))) {
     return res.status(400).json({ success: false, message: 'Please choose one of the available time slots' });
   }
+  // Hamesha canonical label store karo ("10:00 am" -> "10:00 AM")
+  slot = slotsFor(date).find((l) => normSlot(l) === normSlot(slot));
   if (isPast(date, slot)) {
     return res.status(400).json({ success: false, message: 'That time has already passed. Please pick a later slot.' });
   }

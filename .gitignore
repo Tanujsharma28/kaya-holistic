@@ -1,6 +1,12 @@
 node_modules
 .env
+.env.*
+!.env.example
+,env
+*.env
 dist
 build
-
 backend/data/db.json
+backend/data/backups/
+backend/data/*.json
+!backend/data/seed.json
