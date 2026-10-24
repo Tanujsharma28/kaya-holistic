@@ -9,11 +9,14 @@ import {
 } from '../controllers/admin.controller.js';
 import { createBookingAdmin, bulkUpdateStatus } from '../controllers/adminBookings.controller.js';
 import { login, verifyLogin } from '../controllers/adminAuth.controller.js';
-import { getSettingsAdmin, saveSettingsAdmin } from '../controllers/settings.controller.js';
+import { getSettingsAdmin, saveSettingsAdmin, sendTestNotification } from '../controllers/settings.controller.js';
 import { getCustomerMeta, saveCustomerMeta } from '../controllers/crm.controller.js';
+import {
+  listGiftCardsAdmin, createGiftCardAdmin, spendGiftCard, undoGiftUse,
+  extendGiftCard, resendGiftCard, voidGiftCard
+} from '../controllers/adminGiftCards.controller.js';
 import { getConsentsAdmin, deleteConsent } from '../controllers/consent.controller.js';
 import { getCustomersAdmin } from '../controllers/user.controller.js';
-import { getGiftCardsAdmin, redeemGiftCard } from '../controllers/giftcard.controller.js';
 import { getTrashAdmin, restoreFromTrash, deleteFromTrash } from '../controllers/trash.controller.js';
 import { getAuditLog } from '../utils/audit.js';
 import { downloadBackup } from '../utils/backup.js';
@@ -28,6 +31,7 @@ router.get('/stats', h(getDashboardStats));
 router.get('/backup', h(downloadBackup));
 router.get('/settings', h(getSettingsAdmin));
 router.put('/settings', h(saveSettingsAdmin));
+router.post('/notifications/test', h(sendTestNotification));
 router.get('/bookings', h(getAllBookingsAdmin));
 router.post('/bookings', h(createBookingAdmin));
 router.post('/bookings/bulk-delete', h(bulkDeleteBookings));
@@ -48,8 +52,13 @@ router.delete('/consents/:id', h(deleteConsent));
 router.get('/customers', h(getCustomersAdmin));
 router.get('/customer-meta', h(getCustomerMeta));
 router.put('/customers/:email/meta', h(saveCustomerMeta));
-router.get('/gift-cards', h(getGiftCardsAdmin));
-router.patch('/gift-cards/:id/redeem', h(redeemGiftCard));
+router.get('/gift-cards', h(listGiftCardsAdmin));
+router.post('/gift-cards', h(createGiftCardAdmin));
+router.post('/gift-cards/:id/use', h(spendGiftCard));
+router.delete('/gift-cards/:id/uses/:rid', h(undoGiftUse));
+router.patch('/gift-cards/:id', h(extendGiftCard));
+router.post('/gift-cards/:id/resend', h(resendGiftCard));
+router.post('/gift-cards/:id/void', h(voidGiftCard));
 router.get('/trash', h(getTrashAdmin));
 router.post('/trash/:id/restore', h(restoreFromTrash));
 router.delete('/trash/:id', h(deleteFromTrash));

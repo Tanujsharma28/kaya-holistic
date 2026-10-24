@@ -1,6 +1,8 @@
 import { db } from '../config/db.js';
-import { getBusiness, SLOT_STEPS, hoursSummary, upcomingClosures } from '../utils/settings.js';
+import { getBusiness, SLOT_STEPS, REVIEW_DELAYS, hoursSummary, upcomingClosures } from '../utils/settings.js';
 import { audit } from '../utils/audit.js';
+import { sendMail } from '../utils/mailer.js';
+import { reminder24Email, reviewRequestEmail } from '../utils/notifyEmails.js';
 
 const bad = (res, message, code = 400) => res.status(code).json({ success: false, message });
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -56,11 +58,24 @@ export const saveSettingsAdmin = async (req, res) => {
     next.closedDates = list.sort((a, b) => a.date.localeCompare(b.date));
   }
 
+  if (body.notifications !== undefined) {
+    const n = body.notifications;
+    if (!n || typeof n !== 'object') return bad(res, 'Invalid email settings');
+    const url = String(n.reviewUrl || '').trim();
+    if (url && (!/^https:\/\/\S+$/.test(url) || url.length > 300)) return bad(res, 'The review link must start with https://');
+    const delay = Number(n.reviewDelayHours);
+    if (!REVIEW_DELAYS.includes(delay)) return bad(res, 'Choose when to send the review request');
+    const reviews = !!n.reviews;
+    if (reviews && !url) return bad(res, 'Add your Google review link before turning review requests on');
+    next.notifications = { reminders: !!n.reminders, reviews, reviewUrl: url, reviewDelayHours: delay };
+  }
+
   const changed = [];
   if (next.ownerName !== cur.ownerName) changed.push('owner name');
   if (next.slotMinutes !== cur.slotMinutes) changed.push(`interval (${next.slotMinutes} min)`);
   if (!same(next.hours, cur.hours)) changed.push('opening hours');
   if (!same(next.closedDates, cur.closedDates)) changed.push('closed dates');
+  if (!same(next.notifications, cur.notifications)) changed.push('client emails');
 
   if (changed.length) {
     db.data.settings.business = next;
@@ -68,6 +83,34 @@ export const saveSettingsAdmin = async (req, res) => {
     await db.write();
   }
   res.json({ success: true, data: getBusiness() });
+};
+
+// Test email: sirf admin ke apne email par jaati hai
+export const sendTestNotification = async (req, res) => {
+  const type = req.body?.type;
+  const to = String(process.env.ADMIN_2FA_EMAIL || process.env.ADMIN_EMAIL || '').trim();
+  if (!to) return bad(res, 'No admin email is configured on the server', 500);
+
+  const tomorrow = new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const sample = {
+    id: 'test', ref: 'TEST1234', name: 'Sample Client', email: to,
+    serviceName: 'Express Facial', price: 75, date: tomorrow, slot: '2:00 PM',
+    duration: 30, mode: 'in-person', type: 'visit',
+  };
+
+  let mail;
+  if (type === 'reminder') {
+    mail = reminder24Email(sample, { needsConsent: true });
+  } else if (type === 'review') {
+    const url = getBusiness().notifications.reviewUrl;
+    if (!url) return bad(res, 'Save your Google review link first');
+    mail = reviewRequestEmail(sample, url);
+  } else {
+    return bad(res, 'Unknown email type');
+  }
+
+  const sent = await sendMail({ to, ...mail, subject: `[Test] ${mail.subject}` });
+  res.json({ success: true, emailed: !!sent, sentTo: to });
 };
 
 // Public: footer ke liye

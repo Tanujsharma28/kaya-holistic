@@ -18,6 +18,7 @@ import giftCardRoutes from './routes/giftcard.routes.js';
 import { notFound, errorHandler, asyncHandler } from './middleware/errorHandler.js';
 import { initBackupCron } from './utils/backup.js';
   import settingsRoutes from './routes/settings.routes.js';
+    import { initNotifyCron } from './utils/notifyScheduler.js';
 const isProd = process.env.NODE_ENV === 'production';
 
 // Production me zaroori env vars ke bina start hi mat karo
@@ -117,4 +118,5 @@ app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT} (${isProd ? 'production' : 'development'})`);
   initReminderCron();
   initBackupCron();
+  initNotifyCron();
 });

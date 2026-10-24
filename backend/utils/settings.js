@@ -4,6 +4,7 @@ import { chicagoNow } from './slots.js';
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const SLOT_STEPS = [15, 30, 45, 60];
+export const REVIEW_DELAYS = [1, 2, 3, 6, 24];
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 const defaultHours = {};
@@ -14,6 +15,7 @@ export const DEFAULT_BUSINESS = {
   slotMinutes: 45,
   hours: defaultHours,
   closedDates: [],
+  notifications: { reminders: true, reviews: false, reviewUrl: '', reviewDelayHours: 3 },
 };
 
 const toMin = (hhmm) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
@@ -50,11 +52,20 @@ export const getBusiness = () => {
     .filter((c) => /^\d{4}-\d{2}-\d{2}$/.test(c?.date || ''))
     .map((c) => ({ date: c.date, reason: String(c.reason || '') }))
     .sort((a, b) => a.date.localeCompare(b.date));
+
+  const n = s.notifications || {};
+  const url = String(n.reviewUrl || '').trim();
   return {
     ownerName: String(s.ownerName || '').trim() || DEFAULT_BUSINESS.ownerName,
     slotMinutes: SLOT_STEPS.includes(Number(s.slotMinutes)) ? Number(s.slotMinutes) : DEFAULT_BUSINESS.slotMinutes,
     hours,
     closedDates,
+    notifications: {
+      reminders: typeof n.reminders === 'boolean' ? n.reminders : true,
+      reviews: typeof n.reviews === 'boolean' ? n.reviews : false,
+      reviewUrl: /^https:\/\/\S+$/.test(url) ? url.slice(0, 300) : '',
+      reviewDelayHours: REVIEW_DELAYS.includes(Number(n.reviewDelayHours)) ? Number(n.reviewDelayHours) : 3,
+    },
   };
 };
 
