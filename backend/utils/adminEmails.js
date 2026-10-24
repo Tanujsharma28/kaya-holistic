@@ -10,7 +10,7 @@ const pretty = (iso) => {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 };
 
-const shell = (title, badgeText, intro, rows, callToAction = '') => `<!doctype html>
+export const shell = (title, badgeText, intro, rows, callToAction = '') => `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
@@ -179,6 +179,7 @@ export const reminderEmail = (b, link) => ({
     `<a href="${esc(link)}" style="display:inline-block;background:#3b3027;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:14px 32px;border-radius:99px;">🎥 Join Google Meet Session Now</a>`
   ),
 });
+
 export const ownerMeetLinkEmail = (b, link) => ({
   subject: `Meet link ready: ${b.name} — ${b.serviceName} at ${b.slot}`,
   html: shell(
