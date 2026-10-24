@@ -10,7 +10,7 @@ const PAYMENTS_PAUSED = () => process.env.PAYMENTS_PAUSED === 'true';
 
 export const GIFT_AMOUNTS = [100, 150];
 const VALID_MONTHS = 6;
-const HOLD_MINUTES = 30;
+const HOLD_MINUTES = 31;
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const randChunk = (n) => Array.from(crypto.randomBytes(n), (b) => ALPHABET[b % ALPHABET.length]).join('');
@@ -92,7 +92,6 @@ export const createGiftCheckout = async (req, res) => {
   try {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
-      payment_method_types: ['card'],
       customer_email: buyerEmail,
       line_items: [{
         price_data: {

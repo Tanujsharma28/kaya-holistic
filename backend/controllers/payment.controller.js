@@ -13,7 +13,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PAYABLE_SERVICE_ID = 'virt';
 
 // Checkout session ka valid time — itni der tak slot "pending-payment" rehke hold rahega.
-const HOLD_MINUTES = 20;
+const HOLD_MINUTES = 31;
 const PAYMENTS_PAUSED = () => process.env.PAYMENTS_PAUSED === 'true';
 
 // ─── 1) Booking draft banao (slot hold) + Stripe Checkout session banao ───
@@ -142,7 +142,6 @@ export const createCheckoutSession = async (req, res) => {
   try {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
-      payment_method_types: ['card'],
       customer_email: booking.email,
       line_items: [{
         price_data: {
