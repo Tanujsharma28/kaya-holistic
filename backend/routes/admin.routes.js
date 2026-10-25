@@ -8,7 +8,6 @@ import {
   getQuizMapAdmin, updateQuizMap
 } from '../controllers/admin.controller.js';
 import { createBookingAdmin, bulkUpdateStatus } from '../controllers/adminBookings.controller.js';
-import { login, verifyLogin } from '../controllers/adminAuth.controller.js';
 import { getSettingsAdmin, saveSettingsAdmin, sendTestNotification } from '../controllers/settings.controller.js';
 import { getCustomerMeta, saveCustomerMeta } from '../controllers/crm.controller.js';
 import {
