@@ -198,13 +198,7 @@ export default function Consultation() {
       <div className="consult-grid">
         <div>
           {prepCard}
-          <div className="guarantee-card">
-            <div className="guarantee-icon">✓</div>
-            <div>
-              <h4>Satisfaction guaranteed</h4>
-              <p className="muted" style={{ margin: 0 }}>If the session isn't valuable to you, we'll make it right. No questions asked.</p>
-            </div>
-          </div>
+
         </div>
         <div>
           <div className="prep-card">
