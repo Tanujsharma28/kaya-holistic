@@ -2,7 +2,8 @@ import { JSONFilePreset } from 'lowdb/node';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-
+import { Low } from 'lowdb';
+import { openMongoState } from './mongoAdapter.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Production me DB_FILE ko persistent disk par point karo (jaise /var/data/kaya-db.json).
@@ -28,7 +29,15 @@ const defaultData = {
   settings: { quizMap: { ...defaultQuizMap } },
 };
 
-export const db = await JSONFilePreset(file, defaultData);
+const useMongo = String(process.env.DB_DRIVER || '').toLowerCase() === 'mongo';
+let lowdb;
+if (useMongo) {
+  lowdb = new Low(await openMongoState(process.env.MONGO_URI), defaultData);
+  await lowdb.read();
+} else {
+  lowdb = await JSONFilePreset(file, defaultData);
+}
+export const db = lowdb;
 db.data.services ||= [];
 db.data.bookings ||= [];
 db.data.consultations ||= [];
@@ -54,4 +63,4 @@ if ((db.data.settings.seedVersion || 1) < SEED_VERSION) {
   db.data.settings.seedVersion = SEED_VERSION;
 }
 await db.write();
-console.log(`🗄️  Database file: ${file}`);
+if (!useMongo) console.log(`🗄️  Database file: ${file}`);

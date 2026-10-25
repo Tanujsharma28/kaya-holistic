@@ -1,7 +1,8 @@
 import crypto from 'crypto';
 import { v4 as uuid } from 'uuid';
 import { db } from '../config/db.js';
-import { stripe } from '../config/stripe.js';
+import { createPaymentLink } from '../utils/square.js';
+import { syncSquareOrder } from './payment.controller.js';
 import { sendMail, notifyOwner } from '../utils/mailer.js';
 import { giftBuyerEmail, giftRecipientEmail, giftOwnerEmail } from '../utils/giftEmails.js';
 import { lookupGift } from '../utils/giftRedeem.js';
@@ -10,7 +11,6 @@ const PAYMENTS_PAUSED = () => process.env.PAYMENTS_PAUSED === 'true';
 
 export const GIFT_AMOUNTS = [100, 150];
 const VALID_MONTHS = 6;
-const HOLD_MINUTES = 31;
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const randChunk = (n) => Array.from(crypto.randomBytes(n), (b) => ALPHABET[b % ALPHABET.length]).join('');
@@ -30,7 +30,7 @@ const publicView = (g) => ({
   createdAt: g.createdAt, expiresAt: g.expiresAt,
 });
 
-// 1) Checkout session
+// 1) Square payment link
 export const createGiftCheckout = async (req, res) => {
   const b = req.body || {};
   const fields = [b.amount, b.buyerName, b.buyerEmail, b.recipientName, b.recipientEmail, b.message];
@@ -90,32 +90,24 @@ export const createGiftCheckout = async (req, res) => {
   }
 
   try {
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      customer_email: buyerEmail,
-      line_items: [{
-        price_data: {
-          currency: 'usd',
-          unit_amount: amount * 100,
-          product_data: {
-            name: `Kaya Holistic Spa gift card ($${amount})`,
-            description: `Digital gift card, valid ${VALID_MONTHS} months`,
-          },
-        },
-        quantity: 1,
-      }],
-      metadata: { giftCardId: gift.id },
-      success_url: `${process.env.CLIENT_URL}/gift-confirmation?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.CLIENT_URL}/gift-cards?cancelled=1`,
-      expires_at: Math.floor(Date.now() / 1000) + HOLD_MINUTES * 60,
+    const link = await createPaymentLink({
+      name: `Kaya Holistic Spa gift card ($${amount})`,
+      description: `Digital gift card, valid ${VALID_MONTHS} months`,
+      amountCents: amount * 100,
+      referenceId: gift.id,
+      kind: 'gift',
+      // Frontend ka purana "session_id" param hi use ho raha hai, usme ab gift card id hai
+      redirectUrl: `${process.env.CLIENT_URL}/gift-confirmation?session_id=${gift.id}`,
+      buyerEmail,
     });
-    gift.stripeSessionId = session.id;
+    gift.squareOrderId = link.orderId;
+    gift.squareLinkId = link.linkId;
     await db.write();
-    res.status(201).json({ success: true, data: { url: session.url } });
+    res.status(201).json({ success: true, data: { url: link.url } });
   } catch (err) {
     db.data.giftCards = db.data.giftCards.filter((g) => g.id !== gift.id);
     await db.write();
-    console.error('Gift card Stripe session error:', err.message);
+    console.error('Gift card Square payment link error:', err.message);
     res.status(502).json({ success: false, message: 'Could not start payment. Please try again in a moment.' });
   }
 };
@@ -131,8 +123,12 @@ export const checkGiftCode = (req, res) => {
 };
 
 // 2) Success page
-export const getGiftBySession = (req, res) => {
-  const g = (db.data.giftCards || []).find((x) => x.stripeSessionId === req.params.sessionId);
+export const getGiftBySession = async (req, res) => {
+  let g = (db.data.giftCards || []).find((x) => x.id === req.params.sessionId);
+  if (g && g.status === 'pending-payment' && g.squareOrderId) {
+    try { await syncSquareOrder(g.squareOrderId); } catch (e) { console.error('Square order sync fail:', e.message); }
+    g = (db.data.giftCards || []).find((x) => x.id === req.params.sessionId);
+  }
   if (!g) {
     return res.status(404).json({
       success: false,
@@ -143,12 +139,11 @@ export const getGiftBySession = (req, res) => {
 };
 
 // 3) Webhook se: payment confirm hone par
-export async function handleGiftPaid(session) {
-  const gift = (db.data.giftCards || []).find((g) => g.id === session.metadata?.giftCardId);
+export async function handleGiftPaid(gift, payment) {
   if (!gift || gift.status !== 'pending-payment') return;
   gift.status = 'paid';
   gift.paidAt = new Date().toISOString();
-  gift.stripePaymentIntentId = session.payment_intent || '';
+  gift.squarePaymentId = payment?.id || '';
   await db.write();
 
   const sendRecipient = gift.recipientEmail && gift.recipientEmail.toLowerCase() !== gift.buyerEmail.toLowerCase();
@@ -159,13 +154,6 @@ export async function handleGiftPaid(session) {
   if (sendRecipient) jobs.push(sendMail({ to: gift.recipientEmail, ...giftRecipientEmail(gift) }));
   const results = await Promise.allSettled(jobs);
   results.forEach((r) => r.status === 'rejected' && console.error('Gift email error:', r.reason?.message));
-}
-
-export async function handleGiftExpired(session) {
-  const id = session.metadata?.giftCardId;
-  const before = (db.data.giftCards || []).length;
-  db.data.giftCards = (db.data.giftCards || []).filter((g) => !(g.id === id && g.status === 'pending-payment'));
-  if (db.data.giftCards.length !== before) await db.write();
 }
 
 // ── Admin ──

@@ -111,7 +111,7 @@ export default function GiftCards() {
 
             {err && <p className="gp-err" role="alert">{err}</p>}
             <button className="gp-btn" disabled={busy}>{busy ? "Taking you to secure payment…" : `Pay $${amount} by card`}</button>
-            <p className="gp-fine">Payment is handled by Stripe. We never see your card details.</p>
+            <p className="gp-fine">Payment is handled by Square. We never see your card details.</p>
           </form>
 
           <div className="gp-prev">
