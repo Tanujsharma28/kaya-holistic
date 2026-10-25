@@ -1,9 +1,9 @@
 import { v4 as uuid } from 'uuid';
 import { db } from '../config/db.js';
-import { stripe } from '../config/stripe.js';
+import { createPaymentLink, refundPayment, verifyWebhookSignature, getOrder } from '../utils/square.js';
 import { hasConflict, toMinutes, isPast } from '../utils/slots.js';
 import { SLOT_LABELS, normSlot, finalizeConfirmedBooking } from './booking.controller.js';
-import { handleGiftPaid, handleGiftExpired } from './giftcard.controller.js';
+import { handleGiftPaid } from './giftcard.controller.js';
 import { closedReason, slotsFor, staffOn, timeOffClash } from '../utils/settings.js';
 import { lookupGift, splitPayment, spendGift, releaseGift } from '../utils/giftRedeem.js';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -12,11 +12,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Baaki (in-person) Setmore khud handle karti hai.
 const PAYABLE_SERVICE_ID = 'virt';
 
-// Checkout session ka valid time — itni der tak slot "pending-payment" rehke hold rahega.
-const HOLD_MINUTES = 31;
+// Itni der tak slot "pending-payment" rehke hold rahega (utils/paymentSweeper.js baad me chhod deta hai).
 const PAYMENTS_PAUSED = () => process.env.PAYMENTS_PAUSED === 'true';
 
-// ─── 1) Booking draft banao (slot hold) + Stripe Checkout session banao ───
+// ─── 1) Booking draft banao (slot hold) + Square payment link banao ───
 export const createCheckoutSession = async (req, res) => {
   let { serviceId, date, slot, name, email, phone, note, giftCode } = req.body || {};
 
@@ -128,7 +127,7 @@ export const createCheckoutSession = async (req, res) => {
     toPay = Math.round((Number(service.price) - used) * 100) / 100;
   }
 
-  // Gift card ne poora price cover kar diya: Stripe ki zarurat nahi, seedha confirm
+  // Gift card ne poora price cover kar diya: Square ki zarurat nahi, seedha confirm
   if (gift && toPay <= 0) {
     booking.status = 'confirmed';
     booking.paidAt = new Date().toISOString();
@@ -139,50 +138,48 @@ export const createCheckoutSession = async (req, res) => {
     return res.status(201).json({ success: true, data: { free: true, bookingId: booking.id, booking, service } });
   }
 
+  booking.amountDue = toPay;
   db.data.bookings.push(booking);
   await db.write();
 
   try {
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      customer_email: booking.email,
-      line_items: [{
-        price_data: {
-          currency: 'usd',
-          unit_amount: Math.round(toPay * 100),
-          product_data: {
-            name: service.name,
-            description: `${service.duration} min online video consultation on ${date} at ${slot}${gift ? ` (gift card -$${booking.giftAmount} applied)` : ''}`,
-          },
-        },
-        quantity: 1,
-      }],
-      metadata: { bookingId: booking.id },
-      success_url: `${process.env.CLIENT_URL}/confirmation?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.CLIENT_URL}/online-consultation?cancelled=1`,
-      expires_at: Math.floor(Date.now() / 1000) + HOLD_MINUTES * 60,
+    const link = await createPaymentLink({
+      name: service.name,
+      description: `${service.duration} min online video consultation on ${date} at ${slot}${gift ? ` (gift card -$${booking.giftAmount} applied)` : ''}`,
+      amountCents: Math.round(toPay * 100),
+      referenceId: booking.id,
+      kind: 'booking',
+      // Frontend ka purana "session_id" param hi use ho raha hai, usme ab booking id hai
+      redirectUrl: `${process.env.CLIENT_URL}/confirmation?session_id=${booking.id}`,
+      buyerEmail: booking.email,
     });
 
-    booking.stripeSessionId = session.id;
+    booking.squareOrderId = link.orderId;
+    booking.squareLinkId = link.linkId;
     await db.write();
 
-    res.status(201).json({ success: true, data: { url: session.url, bookingId: booking.id } });
+    res.status(201).json({ success: true, data: { url: link.url, bookingId: booking.id } });
   } catch (err) {
-    // Stripe session nahi bana, toh hold kiya hua slot turant chhod do
+    // Payment link nahi bana, toh hold kiya hua slot turant chhod do
     db.data.bookings = db.data.bookings.filter((b) => b.id !== booking.id);
     releaseGift(db.data.giftCards, booking.id);
     await db.write();
-    console.error('Stripe checkout session banane me error:', err.message);
+    console.error('Square payment link banane me error:', err.message);
     res.status(502).json({ success: false, message: 'Could not start payment. Please try again in a moment.' });
   }
 };
 
-// ─── 2) Success page ke liye: session_id se booking dhoondo ───
-export const getBookingBySession = (req, res) => {
+// ─── 2) Success page ke liye: booking id (redirect me session_id naam se aati hai) se booking dhoondo ───
+export const getBookingBySession = async (req, res) => {
   const { sessionId } = req.params;
   if (!sessionId) return res.status(400).json({ success: false, message: 'Missing session id' });
 
-  const booking = db.data.bookings.find((b) => b.stripeSessionId === sessionId);
+  let booking = db.data.bookings.find((b) => b.id === sessionId);
+  // Webhook late ho ya na aaye (jaise local test), to Square se seedha order pooch lete hain
+  if (booking && booking.status === 'pending-payment' && booking.squareOrderId) {
+    try { await syncSquareOrder(booking.squareOrderId); } catch (e) { console.error('Square order sync fail:', e.message); }
+    booking = db.data.bookings.find((b) => b.id === sessionId);
+  }
   if (!booking) {
     return res.status(404).json({
       success: false,
@@ -193,70 +190,86 @@ export const getBookingBySession = (req, res) => {
   res.json({ success: true, data: booking, service });
 };
 
-// ─── 3) Stripe Webhook: yahi se booking actually CONFIRM hoti hai ───
-// Frontend ka "success" dikhana kabhi bhi bharosemand nahi — sirf Stripe ka
-// server confirm kar sakta hai ki paisa actually mila. Isliye confirm-email,
-// Meet link sab sirf is webhook ke andar hi trigger hote hain.
-export const stripeWebhook = async (req, res) => {
-  const sig = req.headers['stripe-signature'];
-  let event;
-  try {
-    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
-  } catch (err) {
-    console.error('❌ Stripe webhook signature invalid:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+// ─── 3) Square Webhook: yahi se booking actually CONFIRM hoti hai ───
+// Frontend ka "success" dikhana kabhi bhi bharosemand nahi — sirf Square ka
+// signed webhook batata hai ki paisa actually mila. Confirm-email, Meet link
+// sab sirf yahin se trigger hote hain.
+// Dhyan: client ke Square account me POS ke dusre payments ke events bhi aate hain.
+// Jo order hamari bookings/gift cards se match na ho, usse ignore karte hain.
+export async function handleSquarePaid(payment) {
+  const orderId = payment?.order_id;
+  if (!orderId || payment.status !== 'COMPLETED') return;
+  const paidCents = Number(payment.amount_money?.amount || 0);
+
+  // Gift card ka payment
+  const gift = (db.data.giftCards || []).find((g) => g.squareOrderId === orderId);
+  if (gift) {
+    if (paidCents < gift.amount * 100) {
+      console.error('❌ Gift card payment amount kam hai, confirm nahi kiya:', orderId, paidCents);
+      return;
+    }
+    await handleGiftPaid(gift, payment);
+    return;
   }
 
-  try {
-    const session = event.data.object;
+  const booking = db.data.bookings.find((b) => b.squareOrderId === orderId);
+  if (!booking || booking.status !== 'pending-payment') return;
 
-    // Gift card ka payment alag flow hai
-    if (session.metadata?.giftCardId) {
-      if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
-        if (session.payment_status === 'paid') await handleGiftPaid(session);
-      } else if (event.type === 'checkout.session.expired' || event.type === 'checkout.session.async_payment_failed') {
-        await handleGiftExpired(session);
-      }
-      return res.json({ received: true });
+  const dueCents = Math.round(Number(booking.amountDue ?? booking.price) * 100);
+  if (paidCents < dueCents) {
+    console.error('❌ Booking payment amount kam hai, confirm nahi kiya:', orderId, paidCents, 'chahiye', dueCents);
+    return;
+  }
+
+  // Bohot hi rare race-condition: isi slot pe koi aur beech me book ho gaya ho.
+  if (hasConflict(db.data, { date: booking.date, slot: booking.slot, duration: booking.duration, ignoreId: booking.id })) {
+    booking.status = 'cancelled';
+    releaseGift(db.data.giftCards, booking.id);
+    await db.write();
+    try {
+      await refundPayment(payment.id, paidCents);
+    } catch (refundErr) {
+      console.error('❌ Auto-refund fail ho gaya, manually refund karna padega:', payment.id, refundErr.message);
     }
+    return;
+  }
 
-    const bookingId = session.metadata?.bookingId;
+  booking.status = 'confirmed';
+  booking.paidAt = new Date().toISOString();
+  booking.amountPaid = paidCents / 100;
+  booking.squarePaymentId = payment.id;
+  await db.write();
+  const service = db.data.services.find((s) => s.id === booking.serviceId) || { name: booking.serviceName, price: booking.price, duration: booking.duration };
+  await finalizeConfirmedBooking(booking, service);
+}
 
-    if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
-      const booking = bookingId && db.data.bookings.find((b) => b.id === bookingId);
-      if (booking && booking.status === 'pending-payment') {
-        // Bohot hi rare race-condition: isi slot pe koi aur beech me book ho gaya ho.
-        if (hasConflict(db.data, { date: booking.date, slot: booking.slot, duration: booking.duration, ignoreId: booking.id })) {
-          booking.status = 'cancelled';
-          releaseGift(db.data.giftCards, booking.id);
-          await db.write();
-          try {
-            await stripe.refunds.create({ payment_intent: session.payment_intent });
-          } catch (refundErr) {
-            console.error('❌ Auto-refund fail ho gaya, manually refund karna padega:', session.payment_intent, refundErr.message);
-          }
-        } else {
-          booking.status = 'confirmed';
-          booking.paidAt = new Date().toISOString();
-          booking.amountPaid = (session.amount_total || 0) / 100;
-          booking.stripePaymentIntentId = session.payment_intent || '';
-          await db.write();
-          const service = db.data.services.find((s) => s.id === booking.serviceId) || { name: booking.serviceName, price: booking.price, duration: booking.duration };
-          await finalizeConfirmedBooking(booking, service);
-        }
-      }
-    } else if (event.type === 'checkout.session.expired' || event.type === 'checkout.session.async_payment_failed') {
-      // Payment complete nahi hua — hold kiya hua slot chhod do
-      const idx = db.data.bookings.findIndex((b) => b.id === bookingId && b.status === 'pending-payment');
-      if (idx !== -1) {
-        releaseGift(db.data.giftCards, db.data.bookings[idx].id);
-        db.data.bookings.splice(idx, 1);
-        await db.write();
-      }
+// Square se order check karke payment confirm karo (webhook ka backup).
+// Sandbox testing panel me order OPEN rehta hai, isliye state nahi, tender (payment) dekhte hain.
+export async function syncSquareOrder(orderId) {
+  const order = await getOrder(orderId);
+  const tender = (order?.tenders || [])[0];
+  if (!tender) return false;
+  if (tender.card_details && tender.card_details.status !== 'CAPTURED') return false;
+  await handleSquarePaid({ id: tender.id, order_id: orderId, status: 'COMPLETED', amount_money: tender.amount_money || order.total_money });
+  return true;
+}
+
+export const squareWebhook = async (req, res) => {
+  const raw = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : '';
+  if (!verifyWebhookSignature(raw, req.headers['x-square-hmacsha256-signature'])) {
+    console.error('❌ Square webhook signature invalid (SQUARE_WEBHOOK_URL / signature key check kar)');
+    return res.status(400).send('Invalid signature');
+  }
+  let event;
+  try { event = JSON.parse(raw); } catch { return res.status(400).send('Bad JSON'); }
+
+  try {
+    if (event.type === 'payment.updated' || event.type === 'payment.created') {
+      await handleSquarePaid(event.data?.object?.payment);
     }
     res.json({ received: true });
   } catch (err) {
-    console.error('❌ Stripe webhook handler error:', err.message);
+    console.error('❌ Square webhook handler error:', err.message);
     res.status(500).json({ received: false });
   }
 };

@@ -247,7 +247,7 @@ export default function OnlineConsultation() {
                 : (isLoading ? "Redirecting to secure payment…" : `Pay & Book — ${gift ? money(toPay) : SERVICE.price}`)}
           </button>
           <p className="oc-secure-note">
-            {PAUSED ? "Test mode: no payment is taken right now." : "🔒 Secure payment via Stripe. Your slot is held while you pay."}
+            {PAUSED ? "Test mode: no payment is taken right now." : "🔒 Secure payment via Square. Your slot is held while you pay."}
           </p>
         </form>
       </div>

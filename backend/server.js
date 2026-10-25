@@ -9,7 +9,8 @@ import servicesRoutes from './routes/services.routes.js';
 import quizRoutes from './routes/quiz.routes.js';
 import bookingRoutes from './routes/booking.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
-import { stripeWebhook } from './controllers/payment.controller.js';
+import { squareWebhook } from './controllers/payment.controller.js';
+import { initPaymentSweeper } from './utils/paymentSweeper.js';
 import consultationRoutes from './routes/consultation.routes.js';
 import consentRoutes from './routes/consent.routes.js';
 import userRoutes from './routes/user.routes.js';
@@ -24,7 +25,7 @@ const isProd = process.env.NODE_ENV === 'production';
 // Production me zaroori env vars ke bina start hi mat karo
 // PAYMENTS_PAUSED=true (testing) ho to Stripe keys ki zarurat nahi. Live jaate waqt ye line .env se hata do.
 const PAYMENTS_PAUSED = process.env.PAYMENTS_PAUSED === 'true';
-const REQUIRED = ['JWT_SECRET', 'ADMIN_EMAIL', 'ADMIN_PASSWORD_HASH', 'CLIENT_URL', ...(PAYMENTS_PAUSED ? [] : ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'])];
+const REQUIRED = ['JWT_SECRET', 'ADMIN_EMAIL', 'ADMIN_PASSWORD_HASH', 'CLIENT_URL', ...(PAYMENTS_PAUSED ? [] : ['SQUARE_ACCESS_TOKEN', 'SQUARE_LOCATION_ID', 'SQUARE_WEBHOOK_SIGNATURE_KEY', 'SQUARE_WEBHOOK_URL'])];
 const missing = REQUIRED.filter((k) => !process.env[k]);
 if (isProd && missing.length) {
   console.error(`❌ Missing required env vars: ${missing.join(', ')}`);
@@ -60,7 +61,7 @@ app.use(cors({
 // Stripe webhook ko raw (unparsed) body chahiye signature verify karne ke liye —
 // isliye yeh express.json() se PEHLE aana zaroori hai, warna signature check
 // hamesha fail hoga.
-app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyncHandler(stripeWebhook));
+app.post('/api/webhooks/square', express.raw({ type: '*/*' }), asyncHandler(squareWebhook));
 
 app.use(express.json({ limit: '50kb' }));
 app.use(morgan(isProd ? 'combined' : 'dev'));
@@ -125,4 +126,5 @@ app.listen(PORT, () => {
   initReminderCron();
   initBackupCron();
   initNotifyCron();
+  initPaymentSweeper();
 });
