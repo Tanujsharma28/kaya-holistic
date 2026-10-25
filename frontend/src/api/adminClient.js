@@ -38,7 +38,17 @@ export const adminVerify = (challengeId, code) =>
     const d = r.data.data || r.data;
     return { token: d.token, email: d.email };
   });
+export const adminForgot = (email) =>
+  adminClient.post("/admin/forgot", { email }).then((r) => ({ resetId: r.data.resetId, sentTo: r.data.sentTo }));
 
+export const adminReset = (resetId, code, newPassword) =>
+  adminClient.post("/admin/reset", { resetId, code, newPassword }).then((r) => r.data);
+
+export const changeAdminPassword = (currentPassword, newPassword) =>
+  adminClient.post("/admin/password", { currentPassword, newPassword }).then((r) => {
+    const d = r.data.data || r.data;
+    return { token: d.token, email: d.email };
+  });
 export const getStats = () => adminClient.get("/admin/stats").then((r) => r.data.data);
 export const getAllBookings = () => adminClient.get("/admin/bookings").then((r) => r.data.data);
 export const getAllConsultations = () => adminClient.get("/admin/consultations").then((r) => r.data.data);

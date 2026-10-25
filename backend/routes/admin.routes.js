@@ -20,13 +20,16 @@ import { getCustomersAdmin } from '../controllers/user.controller.js';
 import { getTrashAdmin, restoreFromTrash, deleteFromTrash } from '../controllers/trash.controller.js';
 import { getAuditLog } from '../utils/audit.js';
 import { downloadBackup } from '../utils/backup.js';
+import { login, verifyLogin, forgotPassword, resetPassword, changePassword } from '../controllers/adminAuth.controller.js';
 
 const router = Router();
 
 router.post('/login', h(login));
 router.post('/login/verify', h(verifyLogin));
+router.post('/forgot', h(forgotPassword));
+router.post('/reset', h(resetPassword));
 router.use(verifyAdmin); // iske neeche sab routes admin token maangte hain
-
+router.post('/password', h(changePassword));
 router.get('/stats', h(getDashboardStats));
 router.get('/backup', h(downloadBackup));
 router.get('/settings', h(getSettingsAdmin));
