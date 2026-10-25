@@ -1,8 +1,9 @@
 import { db } from '../config/db.js';
-import { getBusiness, STAFF, SLOT_STEPS, REVIEW_DELAYS, hoursSummary, upcomingClosures } from '../utils/settings.js';
 import { audit } from '../utils/audit.js';
 import { sendMail } from '../utils/mailer.js';
 import { reminder24Email, reviewRequestEmail } from '../utils/notifyEmails.js';
+import { getBusiness, STAFF, SLOT_STEPS, REVIEW_DELAYS, hoursSummary, upcomingClosures, staffSchedule } from '../utils/settings.js';
+
 const bad = (res, message, code = 400) => res.status(code).json({ success: false, message });
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -129,4 +130,4 @@ export const sendTestNotification = async (req, res) => {
 
 // Public: footer ke liye
 export const getPublicHours = (req, res) =>
-  res.json({ success: true, data: { lines: hoursSummary(), closures: upcomingClosures() } });
+   res.json({ success: true, data: { lines: hoursSummary(), closures: upcomingClosures(), staff: staffSchedule() } });

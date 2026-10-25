@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import { adminLogin, adminVerify } from "../../api/adminClient";
+import { adminLogin, adminVerify, adminForgot, adminReset } from "../../api/adminClient";
 import { useAdminAuth } from "../../context/AdminAuthContext";
 
 export default function AdminLogin() {
@@ -12,6 +12,11 @@ export default function AdminLogin() {
   const [loading, setLoading] = useState(false);
   const [challenge, setChallenge] = useState(null); // { id, sentTo } jab email code maanga ho
   const [code, setCode] = useState("");
+  const [view, setView] = useState("login"); // login | forgot | reset
+  const [resetInfo, setResetInfo] = useState(null); // { id, sentTo }
+  const [newPw, setNewPw] = useState("");
+  const [newPw2, setNewPw2] = useState("");
+  const [notice, setNotice] = useState("");
   const { login, isAuthenticated } = useAdminAuth();
   const navigate = useNavigate();
 
@@ -23,12 +28,35 @@ export default function AdminLogin() {
     navigate("/admin/dashboard");
   };
 
+  const goLogin = () => {
+    setView("login");
+    setChallenge(null);
+    setResetInfo(null);
+    setCode("");
+    setNewPw("");
+    setNewPw2("");
+    setError("");
+    setNotice("");
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     setError("");
+    setNotice("");
+    if (view === "reset" && newPw !== newPw2) return setError("The two passwords do not match.");
     setLoading(true);
     try {
-      if (!challenge) {
+      if (view === "forgot") {
+        const d = await adminForgot(email.trim());
+        setResetInfo({ id: d.resetId, sentTo: d.sentTo });
+        setCode("");
+        setView("reset");
+      } else if (view === "reset") {
+        await adminReset(resetInfo.id, code.trim(), newPw);
+        goLogin();
+        setPassword("");
+        setNotice("Password updated. Sign in with your new password.");
+      } else if (!challenge) {
         const data = await adminLogin(email.trim(), password);
         if (data.twoFactor) {
           setChallenge({ id: data.challengeId, sentTo: data.sentTo });
@@ -47,6 +75,11 @@ export default function AdminLogin() {
       if (challenge && err.response && [401, 429].includes(err.response.status) && /expired|Too many/i.test(msg || "")) {
         setChallenge(null);
         setPassword("");
+      }
+      // Reset code expire ho gaya: dobara code mangwao
+      if (view === "reset" && /expired|Too many/i.test(msg || "")) {
+        setResetInfo(null);
+        setView("forgot");
       }
     } finally {
       setLoading(false);
@@ -146,7 +179,17 @@ export default function AdminLogin() {
 
       <section className="kl-form-side">
         <form className="kl-card" onSubmit={submit} noValidate={false}>
-          {!challenge ? (
+          {view === "forgot" ? (
+            <>
+              <h2>Reset password</h2>
+              <p className="kl-sub">Enter your admin email and we will send you a 6-digit code.</p>
+            </>
+          ) : view === "reset" ? (
+            <>
+              <h2>Choose a new password</h2>
+              <p className="kl-sub">We sent a 6-digit code to {resetInfo?.sentTo}. It works for 10 minutes.</p>
+            </>
+          ) : !challenge ? (
             <>
               <h2>Welcome back</h2>
               <p className="kl-sub">Sign in with your admin email to continue.</p>
@@ -159,10 +202,63 @@ export default function AdminLogin() {
           )}
 
           <div aria-live="polite">
+            {notice && (
+              <div role="status" style={{ background: "#eef6ee", border: "1px solid #c6dfc8", color: "#2f6b3a", borderRadius: 12, padding: "12px 14px", fontSize: ".88rem", marginBottom: 18 }}>
+                {notice}
+              </div>
+            )}
             {error && <div className="kl-error" role="alert">{error}</div>}
           </div>
 
-          {!challenge ? (
+          {view === "forgot" ? (
+            <>
+              <div className="kl-field">
+                <label htmlFor="kl-email">Email</label>
+                <div className="kl-input">
+                  <input id="kl-email" type="email" autoComplete="username" placeholder="you@kayaholisticspa.com"
+                    value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+                </div>
+              </div>
+              <button className="kl-btn" type="submit" disabled={loading || !email}>
+                {loading && <span className="kl-spin" aria-hidden="true" />}
+                {loading ? "Sending" : "Send reset code"}
+              </button>
+            </>
+          ) : view === "reset" ? (
+            <>
+              <div className="kl-field">
+                <label htmlFor="kl-code">Reset code</label>
+                <div className="kl-input">
+                  <input id="kl-code" className="code" type="text" inputMode="numeric" autoComplete="one-time-code"
+                    maxLength={6} placeholder="------" value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} required autoFocus />
+                </div>
+              </div>
+              <div className="kl-field">
+                <label htmlFor="kl-newpw">New password</label>
+                <div className="kl-input">
+                  <input id="kl-newpw" className="pw" type={show ? "text" : "password"} autoComplete="new-password"
+                    placeholder="At least 8 characters, with a number" value={newPw}
+                    onChange={(e) => setNewPw(e.target.value)} required />
+                  <button type="button" className="kl-eye" onClick={() => setShow((x) => !x)}
+                    aria-label={show ? "Hide password" : "Show password"}>
+                    {show ? "Hide" : "Show"}
+                  </button>
+                </div>
+              </div>
+              <div className="kl-field">
+                <label htmlFor="kl-newpw2">Confirm new password</label>
+                <div className="kl-input">
+                  <input id="kl-newpw2" type={show ? "text" : "password"} autoComplete="new-password"
+                    value={newPw2} onChange={(e) => setNewPw2(e.target.value)} required />
+                </div>
+              </div>
+              <button className="kl-btn" type="submit" disabled={loading || code.length !== 6 || !newPw || !newPw2}>
+                {loading && <span className="kl-spin" aria-hidden="true" />}
+                {loading ? "Saving" : "Update password"}
+              </button>
+            </>
+          ) : !challenge ? (
             <>
               <div className="kl-field">
                 <label htmlFor="kl-email">Email</label>
@@ -204,6 +300,12 @@ export default function AdminLogin() {
                   </button>
                 </div>
                 {caps && <p className="kl-hint">Caps Lock is on.</p>}
+                <p style={{ marginTop: 8, textAlign: "right" }}>
+                  <button type="button" className="kl-back" style={{ fontSize: ".82rem" }}
+                    onClick={() => { setView("forgot"); setError(""); setNotice(""); }}>
+                    Forgot password?
+                  </button>
+                </p>
               </div>
 
               <button className="kl-btn" type="submit" disabled={loading || !email || !password}>
@@ -240,7 +342,9 @@ export default function AdminLogin() {
           )}
 
           <div className="kl-foot">
-            {!challenge ? (
+            {view !== "login" ? (
+              <button type="button" className="kl-back" onClick={goLogin}>Back to sign in</button>
+            ) : !challenge ? (
               <Link className="kl-back" to="/">Back to website</Link>
             ) : (
               <button type="button" className="kl-back" onClick={backToPassword}>Use a different account or resend code</button>

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { getBookingBySession } from "../api/client";
+import StaffProfileCard from "../components/StaffProfileCard";
+import { STAFF_PROFILES } from "../data/staff";
 
 export default function Confirmation() {
   const { state } = useLocation();
@@ -53,8 +55,8 @@ export default function Confirmation() {
     poll();
     return () => { cancelled = true; };
   }, [sessionId, state]);
-   
-    // Online consultation: payment confirm hote hi seedha Consent Form par bhej do
+
+  // Online consultation: payment confirm hote hi seedha Consent Form par bhej do
   const readyBooking = state?.booking || fetched?.booking;
   const goToConsent = status === "ready" && readyBooking?.mode === "online";
   useEffect(() => {
@@ -122,6 +124,8 @@ export default function Confirmation() {
   const booking = bookingData;
   const service = serviceData;
   const isOnline = booking.mode === "online";
+  const who = STAFF_PROFILES[booking.staff] ? booking.staff : "Puja";
+  const other = Object.keys(STAFF_PROFILES).find((k) => k !== who);
   const prettyDate = new Date(booking.date + "T12:00:00").toLocaleDateString("en-US", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
@@ -142,7 +146,10 @@ export default function Confirmation() {
             <span>{isOnline ? "Format" : "Location"}</span>
             <b>{isOnline ? "Video call on Google Meet" : "1567 Sherman Ave, Evanston"}</b>
           </div>
+          <div className="cf-row"><span>With</span><b>{STAFF_PROFILES[who].fullName}</b></div>
         </div>
+
+        <StaffProfileCard name={who} eyebrow="Your esthetician" />
 
         {isOnline && (
           <div className="cf-next">
@@ -163,6 +170,22 @@ export default function Confirmation() {
             </button>
           </div>
         )}
+
+        <div className="cf-good">
+          <h3>Good to know</h3>
+          <ul>
+            {!isOnline && <li>Please arrive 5 minutes early with a clean, makeup-free face.</li>}
+            {!isOnline && <li>Let us know about any allergies or sensitivities.</li>}
+            {isOnline && <li>Join with the Google Meet link in your email at your appointment time. You will get a reminder 30 minutes before.</li>}
+            <li>Need to reschedule? Please call us at least 24 hours ahead: <a href="tel:8475711910">847-571-1910</a>.</li>
+          </ul>
+          {!isOnline && (
+            <a className="cf-link" target="_blank" rel="noreferrer"
+               href="https://www.google.com/maps/search/?api=1&query=1567%20Sherman%20Avenue%2C%20Evanston%2C%20IL%2060201">Get directions →</a>
+          )}
+        </div>
+
+        {other && <StaffProfileCard name={other} eyebrow="Also on our team" compact />}
 
         <div className="cf-actions">
           {isOnline && booking.meetLink && (
@@ -194,5 +217,10 @@ const CF_CSS = `
 .cf-actions { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 20px; }
 .cf-btn { display: inline-flex; align-items: center; justify-content: center; padding: 13px 28px; border-radius: 99px; background: #A67C52; color: #fff; border: 1.5px solid #A67C52; font-family: inherit; font-weight: 600; font-size: 0.93rem; cursor: pointer; text-decoration: none; }
 .cf-btn.dark { background: #241A13; border-color: #241A13; }
+.cf-good { text-align: left; margin: 22px 0 0; padding: 0 6px; }
+.cf-good h3 { font-family: Fraunces, Georgia, serif; font-size: 1.05rem; font-weight: 400; margin: 0 0 8px; color: #241A13; }
+.cf-good ul { margin: 0 0 10px; padding-left: 18px; color: #5C4F41; font-size: .88rem; line-height: 1.7; }
+.cf-good a { color: #7C5C38; font-weight: 600; }
+.cf-link { font-size: .88rem; text-decoration: none; }
 .cf-btn.ghost { background: transparent; color: #7C5C38; }
 `;

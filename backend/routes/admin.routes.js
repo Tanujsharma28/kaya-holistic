@@ -8,7 +8,6 @@ import {
   getQuizMapAdmin, updateQuizMap
 } from '../controllers/admin.controller.js';
 import { createBookingAdmin, bulkUpdateStatus } from '../controllers/adminBookings.controller.js';
-import { login, verifyLogin } from '../controllers/adminAuth.controller.js';
 import { getSettingsAdmin, saveSettingsAdmin, sendTestNotification } from '../controllers/settings.controller.js';
 import { getCustomerMeta, saveCustomerMeta } from '../controllers/crm.controller.js';
 import {
@@ -20,13 +19,16 @@ import { getCustomersAdmin } from '../controllers/user.controller.js';
 import { getTrashAdmin, restoreFromTrash, deleteFromTrash } from '../controllers/trash.controller.js';
 import { getAuditLog } from '../utils/audit.js';
 import { downloadBackup } from '../utils/backup.js';
+import { login, verifyLogin, forgotPassword, resetPassword, changePassword } from '../controllers/adminAuth.controller.js';
 
 const router = Router();
 
 router.post('/login', h(login));
 router.post('/login/verify', h(verifyLogin));
+router.post('/forgot', h(forgotPassword));
+router.post('/reset', h(resetPassword));
 router.use(verifyAdmin); // iske neeche sab routes admin token maangte hain
-
+router.post('/password', h(changePassword));
 router.get('/stats', h(getDashboardStats));
 router.get('/backup', h(downloadBackup));
 router.get('/settings', h(getSettingsAdmin));

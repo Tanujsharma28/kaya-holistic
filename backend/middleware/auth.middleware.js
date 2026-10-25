@@ -11,6 +11,11 @@ export const verifyAdmin = (req, res, next) => {
     if (decoded.role !== 'admin') {
       return res.status(401).json({ success: false, message: 'Invalid token.' });
     }
+        // Password badalne ke baad purane tokens kaam nahi karte
+    const changedAt = Math.floor(Number(db.data.adminAuth?.changedAt || 0) / 1000);
+    if (changedAt && Number(decoded.iat || 0) < changedAt) {
+      return res.status(401).json({ success: false, message: 'Password was changed. Please sign in again.' });
+    }
     req.admin = decoded;
     next();
   } catch {

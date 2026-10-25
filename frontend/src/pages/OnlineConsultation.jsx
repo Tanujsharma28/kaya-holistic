@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import StaffProfileCard from "../components/StaffProfileCard";
 import { createCheckoutSession, getAvailabilityInfo, getServices, checkGiftCode } from "../api/client";
 // Testing: VITE_PAYMENTS_PAUSED=true ho to sirf button ka text badalta hai (asli pause backend ke PAYMENTS_PAUSED se hota hai)
 const PAUSED = import.meta.env.VITE_PAYMENTS_PAUSED === "true";
@@ -174,7 +175,7 @@ export default function OnlineConsultation() {
           ) : selectedDate ? (
             <div className="oc-field">
               <label>Time {slotsLoading && <span className="oc-loading-label">loading…</span>}</label>
-              {staff && <p className="oc-sub" style={{ margin: "0 0 8px" }}>Your session on this day is with <b>{staff}</b>.</p>}
+             {staff && <StaffProfileCard name={staff} eyebrow="Your session on this day is with" />}
               <div className="oc-slots-grid">
                 {slots.map((s) => (
                   <button
