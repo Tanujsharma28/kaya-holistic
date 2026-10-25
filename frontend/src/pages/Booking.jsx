@@ -1,6 +1,7 @@
    import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { logActivity } from '../api/userClient';
+import StaffCards from '../components/StaffCards';
 
 const Booking = () => {
   const [loading, setLoading] = useState(true);
@@ -351,6 +352,9 @@ const Booking = () => {
               onLoad={() => setLoading(false)}
             ></iframe>
           </div>
+        </div>
+                <div style={{ margin: "44px 0 8px" }}>
+          <StaffCards title="Meet your estheticians" sub="Both are licensed. Here is who we have and when they are in the studio." />
         </div>
 
         {/* HELPFUL SPA INFORMATION CARDS */}

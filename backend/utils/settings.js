@@ -150,3 +150,35 @@ export const timeOffClash = (date, slot, duration = 45) => {
   const end = start + Number(duration || 45);
   return getBusiness().timeOff.find((t) => t.date === date && start < toMin(t.to) && toMin(t.from) < end) || null;
 };
+// "Mon, Tue, Wed" -> "Mon–Wed" (3+ lagatar din), warna comma se
+const dayRuns = (days) => {
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  const idx = days.map((d) => order.indexOf(d)).sort((a, b) => a - b);
+  const parts = [];
+  let i = 0;
+  while (i < idx.length) {
+    let j = i;
+    while (j + 1 < idx.length && idx[j + 1] === idx[j] + 1) j++;
+    const a = SHORT[order[idx[i]]];
+    const z = SHORT[order[idx[j]]];
+    if (j - i >= 2) parts.push(`${a}–${z}`);
+    else for (let k = i; k <= j; k++) parts.push(SHORT[order[idx[k]]]);
+    i = j + 1;
+  }
+  return parts.join(', ');
+};
+
+// [{ name, schedule: ["Mon–Wed, Sat · 10AM–6PM"] }] — admin Settings ke hours se banta hai
+export const staffSchedule = () => {
+  const b = getBusiness();
+  return STAFF.map((name) => {
+    const groups = new Map();
+    for (let d = 0; d < 7; d++) {
+      const h = b.hours[d];
+      if (!h.open || h.staff !== name) continue;
+      const k = `${t12(h.from)}–${t12(h.to)}`;
+      groups.set(k, [...(groups.get(k) || []), d]);
+    }
+    return { name, schedule: [...groups].map(([time, days]) => `${dayRuns(days)} · ${time}`) };
+  });
+};

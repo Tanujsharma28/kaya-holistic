@@ -1,5 +1,6 @@
 import { v4 as uuid } from 'uuid';
 import { db } from '../config/db.js';
+import { staffEmailBlock } from '../utils/staffEmail.js';
 import { sendMail, notifyOwner } from '../utils/mailer.js';
 import { hasConflict, toMinutes, typeOf, isPast } from '../utils/slots.js';
 import { createMeetEvent } from '../utils/googleMeet.js';
@@ -108,6 +109,8 @@ function clientEmail({ b, service, formattedDate, isOnline, link }) {
   </table>
 </td></tr>
 <tr><td style="padding:20px 36px 8px">${online}</td></tr>
+<tr><td style="padding:20px 36px 8px">${online}</td></tr>
+<tr><td style="padding:12px 36px 8px">${staffEmailBlock(b.staff)}</td></tr>
 ${isOnline ? `<tr><td style="padding:12px 36px 8px;text-align:center">
   <p style="margin:0 0 12px;font-size:14px;color:#5c4f41;line-height:1.6">One more step: tell Puja about your skin (2 minutes) so she can prepare for your session.</p>
   <a href="${esc(intakeUrl)}" style="display:inline-block;background:#241a13;color:#fff;text-decoration:none;font-weight:600;padding:12px 26px;border-radius:99px">Complete your skin profile</a>

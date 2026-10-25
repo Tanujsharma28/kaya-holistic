@@ -1,5 +1,6 @@
 import { shell } from './adminEmails.js';
 import { toMinutes } from './slots.js';
+import { profileFor } from './staffProfiles.js';
 
 const ADDRESS = '1567 Sherman Avenue, Evanston, IL 60201';
 const PHONE = '847-571-1910';
@@ -59,6 +60,7 @@ export const reminder24Email = (b, { needsConsent = false } = {}) => {
         ['Service', esc(b.serviceName)],
         ['Date', pretty(b.date)],
         ['Time', timeRange(b)],
+        ...(b.staff ? [['With', `${esc(profileFor(b.staff).fullName)}, ${esc(profileFor(b.staff).role)}`]] : []),
         ['Where', where],
         ...(b.ref ? [['Reference', esc(b.ref)]] : []),
       ],
