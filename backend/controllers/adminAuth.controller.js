@@ -48,7 +48,7 @@ const codeEmail = (code) => ({
   </div>`,
 });
 // Password badalne par hash database me save hota hai; wo env ke ADMIN_PASSWORD_HASH se upar chalta hai.
-const adminHash = () => db.data.adminAuth?.hash || process.env.ADMIN_PASSWORD_HASH;
+const adminHash = () => db.data.adminAuth?.hash || (process.env.ADMIN_PASSWORD_HASH || '').trim();
 
 const passwordProblem = (pw) => {
   if (pw.length < 8) return 'Password must be at least 8 characters.';
