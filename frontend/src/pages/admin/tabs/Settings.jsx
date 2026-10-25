@@ -15,6 +15,12 @@ const DELAYS = [
 ];
 const DEFAULT_NOTIF = { reminders: true, reviews: false, reviewUrl: "", reviewDelayHours: 3 };
 const todayChicago = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+const hm = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+const t12 = (t) => { const [h, m] = t.split(":").map(Number); return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`; };
+const slotMin = (slot) => {
+  const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(slot || "");
+  return m ? ((Number(m[1]) % 12) + (m[3].toUpperCase() === "PM" ? 12 : 0)) * 60 + Number(m[2]) : null;
+};
 const nice = (d) =>
   new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
 
@@ -29,6 +35,8 @@ export default function Settings({ settings, bookings = [], onSave }) {
   const [reviews, setReviews] = useState(saved.reviews);
   const [reviewUrl, setReviewUrl] = useState(saved.reviewUrl);
   const [delay, setDelay] = useState(saved.reviewDelayHours);
+  const [timeOff, setTimeOff] = useState(settings.timeOff || []);
+  const [to, setTo] = useState({ date: "", from: "10:00", to: "12:00", reason: "" });
   const [newDate, setNewDate] = useState("");
   const [newReason, setNewReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -51,11 +59,12 @@ export default function Settings({ settings, bookings = [], onSave }) {
       Number(step) !== settings.slotMinutes ||
       JSON.stringify(hours) !== JSON.stringify(settings.hours) ||
       JSON.stringify(closed) !== JSON.stringify(settings.closedDates) ||
+      JSON.stringify(timeOff) !== JSON.stringify(settings.timeOff || []) ||
       remind !== saved.reminders ||
       reviews !== saved.reviews ||
       url !== saved.reviewUrl ||
       Number(delay) !== saved.reviewDelayHours,
-    [owner, step, hours, closed, remind, reviews, url, delay, settings] // eslint-disable-line react-hooks/exhaustive-deps
+    [owner, step, hours, closed, timeOff, remind, reviews, url, delay, settings] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const discard = () => {
@@ -63,6 +72,7 @@ export default function Settings({ settings, bookings = [], onSave }) {
     setStep(settings.slotMinutes);
     setHours(settings.hours);
     setClosed(settings.closedDates);
+    setTimeOff(settings.timeOff || []);
     setRemind(saved.reminders);
     setReviews(saved.reviews);
     setReviewUrl(saved.reviewUrl);
@@ -76,6 +86,7 @@ export default function Settings({ settings, bookings = [], onSave }) {
       slotMinutes: Number(step),
       hours,
       closedDates: closed,
+      timeOff,
       notifications: { reminders: remind, reviews, reviewUrl: url, reviewDelayHours: Number(delay) },
     });
     setBusy(false);
@@ -102,6 +113,15 @@ export default function Settings({ settings, bookings = [], onSave }) {
     setClosed([...closed, { date: newDate, reason: newReason.trim() }].sort((a, b) => a.date.localeCompare(b.date)));
     setNewDate("");
     setNewReason("");
+  };
+
+  const staffOf = (date) => hours[new Date(date + "T12:00:00").getDay()]?.staff || "";
+  const toBad = !to.date || !to.from || !to.to || to.from >= to.to;
+  const addTimeOff = () => {
+    if (toBad) return;
+    const entry = { id: `${to.date}-${to.from}-${Date.now()}`, date: to.date, from: to.from, to: to.to, reason: to.reason.trim() };
+    setTimeOff([...timeOff, entry].sort((a, b) => (a.date + a.from).localeCompare(b.date + b.from)));
+    setTo({ ...to, date: "", reason: "" });
   };
 
   const label = { display: "block", fontSize: ".78rem", fontWeight: 600, marginBottom: 5 };
@@ -148,7 +168,7 @@ export default function Settings({ settings, bookings = [], onSave }) {
       </div>
 
       <div className="adm-panel" style={{ marginTop: 18 }}>
-        <h3>Opening hours</h3>
+        <h3>Opening hours and who is working</h3>
         {DAYS.map(([k, name]) => {
           const h = hours[k];
           return (
@@ -157,6 +177,12 @@ export default function Settings({ settings, bookings = [], onSave }) {
                 <input type="checkbox" checked={h.open} onChange={(e) => setDay(k, { open: e.target.checked })} />
                 <b>{name}</b>
               </label>
+              {h.open && (
+                <select className="adm-in" style={{ width: 110 }} value={h.staff} aria-label={`${name} staff`}
+                  onChange={(e) => setDay(k, { staff: e.target.value })}>
+                  {(settings.staffOptions || ["Puja", "Sia"]).map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              )}
               {h.open ? (
                 <span className="adm-row" style={{ gap: 8 }}>
                   <input className="adm-in" type="time" style={{ width: 140 }} value={h.from}
@@ -219,6 +245,63 @@ export default function Settings({ settings, bookings = [], onSave }) {
                 <button className="adm-btn ghost sm" onClick={() => setClosed(closed.filter((x) => x.date !== c.date))}>
                   Remove
                 </button>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div className="adm-panel" style={{ marginTop: 18 }}>
+        <h3>Time off (unavailable for a few hours)</h3>
+        <p className="adm-muted" style={{ marginBottom: 12, fontSize: ".85rem" }}>
+          Example: Puja is not available on Monday 12:00–2:00 PM. Those times disappear from the booking page and she is
+          available again right after. For a whole day, use "Closed dates" above.
+        </p>
+        <div className="adm-row" style={{ alignItems: "flex-end", marginBottom: 6 }}>
+          <div>
+            <label style={label}>Date</label>
+            <input className="adm-in" type="date" min={today} value={to.date} onChange={(e) => setTo({ ...to, date: e.target.value })} />
+          </div>
+          <div>
+            <label style={label}>From</label>
+            <input className="adm-in" type="time" style={{ width: 130 }} value={to.from} onChange={(e) => setTo({ ...to, from: e.target.value })} />
+          </div>
+          <div>
+            <label style={label}>To</label>
+            <input className="adm-in" type="time" style={{ width: 130 }} value={to.to} onChange={(e) => setTo({ ...to, to: e.target.value })} />
+          </div>
+          <div style={{ flex: 1, minWidth: 160 }}>
+            <label style={label}>Reason (optional)</label>
+            <input className="adm-in" maxLength={60} placeholder="Doctor, errand…" value={to.reason} onChange={(e) => setTo({ ...to, reason: e.target.value })} />
+          </div>
+          <button className="adm-btn" disabled={toBad} onClick={addTimeOff}>Add</button>
+        </div>
+        {to.date && <p className="adm-muted" style={{ fontSize: ".82rem" }}>{nice(to.date)} · {staffOf(to.date) || "-"} is working this day.</p>}
+        {to.from >= to.to && <p style={{ color: "#8f2f20", fontSize: ".85rem" }}>"To" time must be after "From" time.</p>}
+
+        {timeOff.length === 0 ? (
+          <p className="adm-muted" style={{ marginTop: 12 }}>No time off added.</p>
+        ) : (
+          timeOff.map((t) => {
+            const past = t.date < today;
+            const n = bookings.filter((b) => {
+              const m = slotMin(b.slot);
+              return b.date === t.date && String(b.status).toLowerCase() !== "cancelled" && m !== null &&
+                m < hm(t.to) && hm(t.from) < m + (Number(b.duration) || 45);
+            }).length;
+            return (
+              <div key={t.id} className="adm-row" style={{ ...line, opacity: past ? 0.55 : 1 }}>
+                <span>
+                  <b>{nice(t.date)}</b> · {t12(t.from)} – {t12(t.to)}
+                  <span className="adm-muted"> · {staffOf(t.date) || t.staff}{t.reason ? ` · ${t.reason}` : ""}</span>
+                  {past && <span className="adm-pill" style={{ marginLeft: 8 }}>Past</span>}
+                  {!past && n > 0 && (
+                    <span className="adm-pill" style={{ marginLeft: 8, color: "#8f2f20" }}>
+                      {n} booking{n === 1 ? "" : "s"} to reschedule
+                    </span>
+                  )}
+                </span>
+                <button className="adm-btn ghost sm" onClick={() => setTimeOff(timeOff.filter((x) => x.id !== t.id))}>Remove</button>
               </div>
             );
           })

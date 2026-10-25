@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { getServices, getCachedServices } from "../api/client";
 import ServiceCard from "../components/ServiceCard";
 import Testimonials from "../components/Testimonials";
-import Gallery from "../components/Gallery";
+import StaffCards from "../components/StaffCards";
 import Reveal from "../components/Reveal";
 import GiftSection from "../components/GiftSection";
 
@@ -126,61 +126,46 @@ export default function Home() {
         </div>
       </section>
 
-    <Reveal>
-  <section className="svc-section">
-    <div className="svc-head">
-      <div>
-        <div className="section-label">Spa Services</div>
-        <h2>Designed around your <span className="italic-accent">well-being</span></h2>
-      </div>
-      <p className="svc-carousel-hint">Swipe or use arrows · Click the centre card to book</p>
-    </div>
-    {loading ? (
-      <div className="svc-loading">
-        <div className="quiz-spinner" />
-        <p>Loading services…</p>
-      </div>
-    ) : (
-      <>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", margin: "0 0 18px" }}>
-          {categories.map((c) => (
-            <button
-              key={c}
-              onClick={() => setCat(c)}
-              style={{
-                padding: "7px 16px", borderRadius: 99, cursor: "pointer", fontSize: ".85rem", fontFamily: "inherit",
-                border: "1.5px solid #a67c52",
-                background: cat === c ? "#a67c52" : "transparent",
-                color: cat === c ? "#fff" : "#7c5c38", fontWeight: 600,
-              }}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
-        <ServicesCarousel key={cat} services={shown} />
-      </>
-    )}
-  </section>
-</Reveal>
-
       <Reveal>
-        <Gallery />
+        <section className="svc-section">
+          <div className="svc-head">
+            <div>
+              <div className="section-label">Spa Services</div>
+              <h2>Designed around your <span className="italic-accent">well-being</span></h2>
+            </div>
+            <p className="svc-carousel-hint">Swipe or use arrows · Click the centre card for details</p>
+          </div>
+          {loading ? (
+            <div className="svc-loading">
+              <div className="quiz-spinner" />
+              <p>Loading services…</p>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", margin: "0 0 18px" }}>
+                {categories.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setCat(c)}
+                    style={{
+                      padding: "7px 16px", borderRadius: 99, cursor: "pointer", fontSize: ".85rem", fontFamily: "inherit",
+                      border: "1.5px solid #a67c52",
+                      background: cat === c ? "#a67c52" : "transparent",
+                      color: cat === c ? "#fff" : "#7c5c38", fontWeight: 600,
+                    }}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+              <ServicesCarousel key={cat} services={shown} />
+            </>
+          )}
+        </section>
       </Reveal>
 
       <Reveal>
-        <div className="about-strip">
-          <div className="about-avatar">P</div>
-          <div>
-            <h3>Puja Gupta, Licensed Esthetician</h3>
-            <p>Over 15 years treating clients at her Evanston spa. Every treatment is personalized — she reads your skin, not a script.</p>
-            <div className="about-badges">
-              <span className="badge">GLO Skin Body Certified</span>
-              <span className="badge">Acne &amp; Anti-Aging Specialist</span>
-              <span className="badge">1567 Sherman Ave, Evanston</span>
-            </div>
-          </div>
-        </div>
+        <StaffCards />
       </Reveal>
 
       <Reveal>

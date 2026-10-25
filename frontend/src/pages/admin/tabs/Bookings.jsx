@@ -184,7 +184,7 @@ export default function Bookings({
                       <input type="checkbox" checked={sel.has(b.id)} onChange={() => toggle(b.id)} aria-label={`Select ${b.name}`} />
                     </td>
                     <td><b>{b.name}</b><br /><span className="adm-muted">{b.email}</span></td>
-                    <td>{b.serviceName}<br /><TypePill type={b.type} /></td>
+                    <td>{b.serviceName}<br /><TypePill type={b.type} />{b.staff && <span className="adm-muted"> · {b.staff}</span>}</td>
                     <td>{fmtDate(b.date)}<br /><span className="adm-muted">{fmtRange(b.slot, b.duration)}</span></td>
                     <td>{money(b.price)}</td>
                     <td><StatusBadge status={b.status} /></td>

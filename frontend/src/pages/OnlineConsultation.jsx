@@ -61,6 +61,7 @@ export default function OnlineConsultation() {
   const removeGift = () => { setGift(null); setGiftInput(""); setGiftMsg(""); };
 
   const [closedMsg, setClosedMsg] = useState("");
+  const [staff, setStaff] = useState("");
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -68,8 +69,9 @@ export default function OnlineConsultation() {
     setSelectedTime("");
     setClosedMsg("");
     getAvailabilityInfo(selectedDate, "virt")
-      .then(({ slots: list, closed }) => {
+      .then(({ slots: list, closed, staff: who }) => {
         setClosedMsg(closed);
+        setStaff(who || "");
         setSlots(list);
       })
       .catch(() => setSlots(FALLBACK_SLOTS.map((t) => ({ time: t, available: true }))))
@@ -172,6 +174,7 @@ export default function OnlineConsultation() {
           ) : selectedDate ? (
             <div className="oc-field">
               <label>Time {slotsLoading && <span className="oc-loading-label">loading…</span>}</label>
+              {staff && <p className="oc-sub" style={{ margin: "0 0 8px" }}>Your session on this day is with <b>{staff}</b>.</p>}
               <div className="oc-slots-grid">
                 {slots.map((s) => (
                   <button

@@ -4,7 +4,7 @@ import { stripe } from '../config/stripe.js';
 import { hasConflict, toMinutes, isPast } from '../utils/slots.js';
 import { SLOT_LABELS, normSlot, finalizeConfirmedBooking } from './booking.controller.js';
 import { handleGiftPaid, handleGiftExpired } from './giftcard.controller.js';
-import { closedReason, slotsFor } from '../utils/settings.js';
+import { closedReason, slotsFor, staffOn, timeOffClash } from '../utils/settings.js';
 import { lookupGift, splitPayment, spendGift, releaseGift } from '../utils/giftRedeem.js';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -59,13 +59,16 @@ export const createCheckoutSession = async (req, res) => {
   if (hasConflict(db.data, { date, slot, duration: service.duration })) {
     return res.status(409).json({ success: false, message: 'Slot already booked' });
   }
+  if (timeOffClash(date, slot, service.duration)) {
+    return res.status(409).json({ success: false, message: 'That time is not available. Please pick another slot.' });
+  }
     // ── PAUSE MODE: payment ke bina seedha confirm ──
   if (PAYMENTS_PAUSED()) {
     const booking = {
       id: uuid(),
       serviceId, serviceName: service.name, price: service.price, duration: service.duration,
       type: 'consultation',
-      date, slot,
+      date, slot, staff: staffOn(date),
       name: String(name).trim().slice(0, 100),
       email: String(email).trim(),
       phone: String(phone || '').trim().slice(0, 30),
@@ -102,7 +105,7 @@ export const createCheckoutSession = async (req, res) => {
     id: uuid(),
     serviceId, serviceName: service.name, price: service.price, duration: service.duration,
     type: 'consultation',
-    date, slot,
+    date, slot, staff: staffOn(date),
     name: String(name).trim().slice(0, 100),
     email: String(email).trim(),
     phone: String(phone || '').trim().slice(0, 30),

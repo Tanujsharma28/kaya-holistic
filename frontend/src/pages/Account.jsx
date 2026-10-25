@@ -44,9 +44,25 @@ const CSS = `
 .ac-bdg.cancelled{background:#f3ece1;color:#8a7d6e}
 .ac-bdg.no-show{background:#fbe9e7;color:#a1342c}
 .ac-empty{color:#8a7d6e;font-size:.9rem;margin-top:10px}
+.gc-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0 6px}
+@media(max-width:560px){.gc-sum{grid-template-columns:1fr}}
+.gc-sum div{background:#fbf3e7;border-radius:14px;padding:12px;text-align:center}
+.gc-sum b{display:block;font-family:'Fraunces',Georgia,serif;font-size:1.4rem;font-weight:400;color:#7c5c38}
+.gc-sum span{color:#8a7d6e;font-size:.8rem}
+.gc-box{border:1.5px solid #e6ddd0;border-radius:16px;padding:16px;margin-top:14px}
+.gc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.gc-code{font-family:ui-monospace,Menlo,monospace;font-weight:700;letter-spacing:.04em;color:#241a13}
+.gc-bar{height:8px;border-radius:99px;background:#efe6d8;overflow:hidden;margin:12px 0 6px}
+.gc-bar i{display:block;height:100%;background:#a67c52}
+.gc-nums{display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;font-size:.85rem;color:#5d5043}
+.gc-use{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid #f3ece1;font-size:.9rem}
+.gc-use:first-of-type{border-top:none}
+.gc-bdg.active{background:#e9f3e5;color:#2f6b34}
+.gc-bdg.partial{background:#fff4e5;color:#8a5a14}
+.gc-bdg.used,.gc-bdg.expired,.gc-bdg.voided{background:#f3ece1;color:#8a7d6e}
 `;
 
-const ICON = { signup: "🎉", login: "🔑", quiz: "✨", booking_page: "📅", book_click: "👆", cancel: "🚫", consent: "📝", intake: "🌿" };
+const ICON = { signup: "🎉", login: "🔑", quiz: "✨", booking_page: "📅", book_click: "👆", cancel: "🚫", consent: "📝", intake: "🌿", gift: "🎁" };
 const fmt = (iso) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
 const fmtDate = (d) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
@@ -61,6 +77,69 @@ function BookingCard({ b, onCancel, cancelling }) {
         <button className="ac-btn danger sm" disabled={cancelling} onClick={() => onCancel(b.id)}>
           {cancelling ? "Cancelling…" : "Cancel"}
         </button>
+      )}
+    </div>
+  );
+}
+const usd = (n) => `$${Number.isInteger(n) ? n : Number(n).toFixed(2)}`;
+const fmtDay = (iso) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+const GIFT_LABEL = { active: "Active", partial: "Partly used", used: "Fully used", expired: "Expired", voided: "Void" };
+
+function GiftCardBox({ g }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const pct = g.amount ? Math.min(100, Math.round((g.used / g.amount) * 100)) : 0;
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(g.code); setCopied(true); setTimeout(() => setCopied(false), 1500); }
+    catch { window.prompt("Copy your code:", g.code); }
+  };
+  return (
+    <div className="gc-box">
+      <div className="gc-head">
+        <div>
+          <div className="ac-bk-name">
+            {usd(g.amount)} gift card<span className={`ac-bdg gc-bdg ${g.status}`}>{GIFT_LABEL[g.status]}</span>
+          </div>
+          <span className="ac-mut">
+            {g.role === "bought"
+              ? `You bought this${g.recipientName ? ` for ${g.recipientName}` : ""} · ${fmtDay(g.createdAt)}`
+              : `Gift from ${g.buyerName || "a friend"} · ${fmtDay(g.createdAt)}`}
+          </span>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div className="gc-code">{g.code}</div>
+          <button className="ac-btn sm" style={{ marginTop: 6 }} onClick={copy}>{copied ? "Copied ✓" : "Copy code"}</button>
+        </div>
+      </div>
+
+      <div className="gc-bar"><i style={{ width: `${pct}%` }} /></div>
+      <div className="gc-nums">
+        <span>Used: <b>{usd(g.used)}</b></span>
+        <span>Left: <b>{usd(g.balance)}</b></span>
+        <span>{g.status === "expired" ? "Expired" : "Valid till"} {fmtDay(g.expiresAt)}</span>
+      </div>
+
+      <div className="ac-more" style={{ textAlign: "left" }}>
+        <button className="ac-btn sm" onClick={() => setOpen(!open)}>
+          {open ? "Hide usage" : `Where it was used (${g.history.length})`}
+        </button>
+      </div>
+      {open && (
+        g.history.length === 0
+          ? <p className="ac-empty">Not used yet.</p>
+          : <div style={{ marginTop: 8 }}>
+              {g.history.map((r) => (
+                <div className="gc-use" key={r.id}>
+                  <div>
+                    <b style={{ fontWeight: 600 }}>{r.where}</b><br />
+                    <span className="ac-mut">
+                      {r.date ? `${fmtDate(r.date)}${r.slot ? ` · ${r.slot}` : ""} · ` : ""}{r.channel} · paid on {fmtDay(r.at)}
+                    </span>
+                  </div>
+                  <b>−{usd(r.amount)}</b>
+                </div>
+              ))}
+            </div>
       )}
     </div>
   );
@@ -89,6 +168,9 @@ export default function Account() {
   const c = data.counts;
   const upcoming = data.upcoming || [];
   const past = data.past || [];
+    const gifts = data.giftCards || [];
+  const gs = data.giftSummary || { bought: 0, used: 0, balance: 0 };
+
 
   const save = async () => {
     setSaveErr(""); setSaved(false);
@@ -122,7 +204,21 @@ export default function Account() {
           <div className="ac-stat"><b>{c.forms}</b><span>Forms filled</span></div>
           <div className="ac-stat"><b>{c.signins}</b><span>Sign-ins</span></div>
         </div>
-
+        <div className="ac-card">
+          <h3>Your gift cards</h3>
+          {gifts.length === 0 ? (
+            <p className="ac-empty">No gift cards yet. <a href="/gift-cards">Buy a gift card</a>.</p>
+          ) : (
+            <>
+              <div className="gc-sum">
+                <div><b>{usd(gs.bought)}</b><span>Total bought</span></div>
+                <div><b>{usd(gs.used)}</b><span>Total used</span></div>
+                <div><b>{usd(gs.balance)}</b><span>Balance left</span></div>
+              </div>
+              {gifts.map((g) => <GiftCardBox key={g.id} g={g} />)}
+            </>
+          )}
+        </div> 
         <div className="ac-card">
           <h3>Upcoming appointments</h3>
           {cancelErr && <p className="ac-mut" style={{ color: "#a1342c" }}>{cancelErr}</p>}

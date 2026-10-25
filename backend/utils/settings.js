@@ -7,14 +7,19 @@ export const SLOT_STEPS = [15, 30, 45, 60];
 export const REVIEW_DELAYS = [1, 2, 3, 6, 24];
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
+export const STAFF = ['Puja', 'Sia'];
+// Default: Thursday & Friday = Sia, baaki din = Puja
+const defaultStaff = (d) => (d === 4 || d === 5 ? 'Sia' : 'Puja');
+
 const defaultHours = {};
-for (let d = 0; d < 7; d++) defaultHours[d] = { open: d !== 0, from: '10:00', to: '18:00' };
+for (let d = 0; d < 7; d++) defaultHours[d] = { open: d !== 0, from: '10:00', to: '18:00', staff: defaultStaff(d) };
 
 export const DEFAULT_BUSINESS = {
   ownerName: 'Puja',
   slotMinutes: 45,
   hours: defaultHours,
   closedDates: [],
+  timeOff: [],
   notifications: { reminders: true, reviews: false, reviewUrl: '', reviewDelayHours: 3 },
 };
 
@@ -46,13 +51,22 @@ export const getBusiness = () => {
       open: typeof cur.open === 'boolean' ? cur.open : base.open,
       from: HHMM.test(cur.from || '') ? cur.from : base.from,
       to: HHMM.test(cur.to || '') ? cur.to : base.to,
+      staff: STAFF.includes(cur.staff) ? cur.staff : base.staff,
     };
   }
   const closedDates = (Array.isArray(s.closedDates) ? s.closedDates : [])
     .filter((c) => /^\d{4}-\d{2}-\d{2}$/.test(c?.date || ''))
     .map((c) => ({ date: c.date, reason: String(c.reason || '') }))
     .sort((a, b) => a.date.localeCompare(b.date));
-
+  const timeOff = (Array.isArray(s.timeOff) ? s.timeOff : [])
+    .filter((t) => /^\d{4}-\d{2}-\d{2}$/.test(t?.date || '') && HHMM.test(t?.from || '') && HHMM.test(t?.to || '') && t.from < t.to)
+    .map((t, i) => ({
+      id: String(t.id || `${t.date}-${t.from}-${i}`),
+      date: t.date, from: t.from, to: t.to,
+      staff: STAFF.includes(t.staff) ? t.staff : defaultStaff(new Date(t.date + 'T12:00:00').getDay()),
+      reason: String(t.reason || ''),
+    }))
+    .sort((a, b) => (a.date + a.from).localeCompare(b.date + b.from));
   const n = s.notifications || {};
   const url = String(n.reviewUrl || '').trim();
   return {
@@ -60,6 +74,8 @@ export const getBusiness = () => {
     slotMinutes: SLOT_STEPS.includes(Number(s.slotMinutes)) ? Number(s.slotMinutes) : DEFAULT_BUSINESS.slotMinutes,
     hours,
     closedDates,
+    timeOff,
+    staffOptions: STAFF,
     notifications: {
       reminders: typeof n.reminders === 'boolean' ? n.reminders : true,
       reviews: typeof n.reviews === 'boolean' ? n.reviews : false,
@@ -122,4 +138,15 @@ export const upcomingClosures = (limit = 3) => {
       const d = new Date(c.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       return { date: c.date, label: c.reason ? `${d} (${c.reason})` : d };
     });
+};
+// Us din kaun kaam kar raha hai ("Puja" / "Sia")
+export const staffOn = (date) => getBusiness().hours[new Date(date + 'T12:00:00').getDay()].staff;
+
+// Slot (start label + duration min) kisi time-off se takraata hai? Ho to us entry, warna null
+export const timeOffClash = (date, slot, duration = 45) => {
+  const m = String(slot).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!m) return null;
+  const start = (Number(m[1]) % 12 + (m[3].toUpperCase() === 'PM' ? 12 : 0)) * 60 + Number(m[2]);
+  const end = start + Number(duration || 45);
+  return getBusiness().timeOff.find((t) => t.date === date && start < toMin(t.to) && toMin(t.from) < end) || null;
 };

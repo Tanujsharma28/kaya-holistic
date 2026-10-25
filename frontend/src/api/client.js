@@ -33,6 +33,6 @@ export const submitConsultation = (payload) => client.post("/consultation", payl
 export const submitConsent = (payload) => client.post("/consent", payload).then(r => r.data.data);
 export const getAvailabilityInfo = (date, serviceId) =>
   client.get('/bookings/availability', { params: { date, serviceId } })
-    .then(r => ({ slots: r.data.data || [], closed: r.data.closed || '' }));
+    .then(r => ({ slots: r.data.data || [], closed: r.data.closed || '', staff: r.data.staff || '' }));
 export const getHours = () => client.get('/settings/hours').then(r => r.data.data);
 export default client;

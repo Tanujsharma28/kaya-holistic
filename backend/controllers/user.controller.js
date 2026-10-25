@@ -25,7 +25,45 @@ function collect(email) {
     consultations: (db.data.consultations || []).filter((c) => norm(c.email) === e),
   };
 }
+const r2 = (n) => Math.round(n * 100) / 100;
 
+// Gift cards jo is email ne kharide ya jo is email par gift hue — kitna use hua, kahan, sab kuch
+function giftsFor(email) {
+  const e = norm(email);
+  const today = todayChicago();
+  const bookings = db.data.bookings || [];
+  return (db.data.giftCards || [])
+    .filter((g) => g.status !== 'pending-payment' && (norm(g.buyerEmail) === e || norm(g.recipientEmail) === e))
+    .map((g) => {
+      let uses = Array.isArray(g.redemptions) ? g.redemptions : [];
+      if (!uses.length && g.status === 'redeemed') {
+        uses = [{ id: 'legacy', amount: g.amount, at: g.redeemedAt || g.paidAt || g.createdAt, note: 'Used at the spa', by: '' }];
+      }
+      const used = r2(uses.reduce((s, r) => s + Number(r.amount), 0));
+      const balance = Math.max(0, r2(g.amount - used));
+      const voided = !!g.voidedAt;
+      const expired = String(g.expiresAt || '').slice(0, 10) < today;
+      const status = voided ? 'voided' : balance <= 0 ? 'used' : expired ? 'expired' : used > 0 ? 'partial' : 'active';
+      const history = uses
+        .map((r) => {
+          const bk = r.bookingId ? bookings.find((b) => b.id === r.bookingId) : null;
+          return {
+            id: r.id, amount: Number(r.amount), at: r.at,
+            where: bk ? bk.serviceName : (r.note || 'Used at the spa'),
+            date: bk?.date || '', slot: bk?.slot || '',
+            channel: r.by === 'website' ? 'Online booking' : 'At the spa', // admin ka email customer ko nahi dikhana
+          };
+        })
+        .sort((a, b) => String(b.at).localeCompare(String(a.at)));
+      return {
+        id: g.id, code: g.code, amount: g.amount, used, balance, status,
+        role: norm(g.buyerEmail) === e ? 'bought' : 'received',
+        buyerName: g.buyerName || '', recipientName: g.recipientName || '', message: g.message || '',
+        createdAt: g.createdAt, expiresAt: g.expiresAt, history,
+      };
+    })
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+}
 // ── Activity log (sirf logged-in customer ka) ──────────────
 const QUIZ_NAMES = {
   advanced: 'Advanced Facial',
@@ -66,6 +104,10 @@ function buildTimeline(email, user) {
   }
   for (const c of consents) ev.push({ id: `c-${c.id}`, at: c.createdAt, type: 'consent', text: 'Signed the facial consent form' });
   for (const c of consultations) ev.push({ id: `i-${c.id}`, at: c.createdAt, type: 'intake', text: 'Submitted the skin intake form' });
+    for (const g of giftsFor(email)) {
+    ev.push({ id: `g-${g.id}`, at: g.createdAt, type: 'gift', text: `${g.role === 'bought' ? 'Bought' : 'Received'} a $${g.amount} gift card` });
+    for (const r of g.history) ev.push({ id: `gr-${g.id}-${r.id}`, at: r.at, type: 'gift', text: `Used $${r.amount} of a gift card on ${r.where}` });
+  }
   return ev.sort((a, b) => String(b.at).localeCompare(String(a.at)));
 }
 
@@ -130,7 +172,14 @@ export const getMe = (req, res) => {
 
   const timeline = buildTimeline(u.email, u).filter((e) => e.type !== 'booking');
   const count = (t) => timeline.filter((e) => e.type === t).length;
-
+  const giftCards = giftsFor(u.email);
+  const live = giftCards.filter((g) => g.status === 'active' || g.status === 'partial');
+  const giftSummary = {
+    count: giftCards.length,
+    bought: r2(giftCards.filter((g) => g.role === 'bought').reduce((s, g) => s + g.amount, 0)),
+    used: r2(giftCards.reduce((s, g) => s + g.used, 0)),
+    balance: r2(live.reduce((s, g) => s + g.balance, 0)),
+  };
   res.json({
     success: true,
     data: {
@@ -138,6 +187,8 @@ export const getMe = (req, res) => {
       upcoming,
       past,
       timeline: timeline.slice(0, 200),
+            giftCards,
+      giftSummary,
       counts: {
         signins: count('login') + count('signup'),
         quizzes: count('quiz'),
