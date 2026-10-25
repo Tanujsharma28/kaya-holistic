@@ -1,3 +1,4 @@
+const staffName = (b) => (b?.staff && b.staff !== 'Puja' ? b.staff : 'Puja Gupta');
 const ADDRESS = '1567 Sherman Avenue, Evanston, IL 60201';
 const PHONE = '847-571-1910';
 
@@ -116,7 +117,7 @@ export const rescheduleEmail = (b, prev = {}) => {
     html: shell(
       'Appointment Rescheduled',
       'Updated Time',
-      `Dear <b>${esc(b.name)}</b>,<br><br>Your appointment with Puja Gupta at Kaya Holistic Spa has been rescheduled. Your updated time is detailed below.`,
+      `Dear <b>${esc(b.name)}</b>,<br><br>Your appointment with ${staffName(b)} at Kaya Holistic Spa has been rescheduled. Your updated time is detailed below.`,
       [
         ['Service', esc(b.serviceName || 'Treatment')],
         ['New Date', esc(pretty(b.date))],
@@ -151,7 +152,7 @@ export const meetLinkEmail = (b, link) => ({
   html: shell(
     'Google Meet Video Link',
     'Video Session Ready',
-    `Dear <b>${esc(b.name)}</b>,<br><br>Here is your official Google Meet video link for your upcoming session with Puja Gupta.`,
+    `Dear <b>${esc(b.name)}</b>,<br><br>Here is your official Google Meet video link for your upcoming session with ${staffName(b)}.`,
     [
       ['Service', esc(b.serviceName || 'Session')],
       ['Date', esc(pretty(b.date))],
@@ -169,7 +170,7 @@ export const reminderEmail = (b, link) => ({
   html: shell(
     'Reminder: 30 Minutes Away',
     'Upcoming Session',
-    `Dear <b>${esc(b.name)}</b>,<br><br>A friendly reminder that your online session with Puja Gupta begins in 30 minutes!`,
+    `Dear <b>${esc(b.name)}</b>,<br><br>A friendly reminder that your online session with ${staffName(b)} begins in 30 minutes!`,
     [
       ['Service', esc(b.serviceName || 'Session')],
       ['Date', esc(pretty(b.date))],

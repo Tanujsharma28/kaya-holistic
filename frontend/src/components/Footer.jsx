@@ -41,9 +41,7 @@ export default function Footer() {
           )}
         </div>
         <div>
-          <h4>Clients</h4>
-          <p><a href="/consent">Facial Consent Form</a></p>
-          <h4 style={{ marginTop: 14 }}>Follow</h4>
+          <h4>Follow</h4>
           <p>Instagram · Facebook<br /><span className="muted">© 2026 Kaya Holistic Spa</span></p>
         </div>
       </div>

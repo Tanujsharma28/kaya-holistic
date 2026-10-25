@@ -47,7 +47,7 @@ export default function CalendarView({ bookings, open }) {
                   <b>{fmtRange(b.slot, b.duration)}</b>
                   {b.name}
                   <br />
-                  <span className="adm-muted">{b.serviceName}</span>
+                  <span className="adm-muted">{b.serviceName}{b.staff ? ` · ${b.staff}` : ""}</span>
                 </button>
               ))}
             </div>

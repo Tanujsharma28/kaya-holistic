@@ -1,9 +1,8 @@
 import { db } from '../config/db.js';
-import { getBusiness, SLOT_STEPS, REVIEW_DELAYS, hoursSummary, upcomingClosures } from '../utils/settings.js';
+import { getBusiness, STAFF, SLOT_STEPS, REVIEW_DELAYS, hoursSummary, upcomingClosures } from '../utils/settings.js';
 import { audit } from '../utils/audit.js';
 import { sendMail } from '../utils/mailer.js';
 import { reminder24Email, reviewRequestEmail } from '../utils/notifyEmails.js';
-
 const bad = (res, message, code = 400) => res.status(code).json({ success: false, message });
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -36,8 +35,8 @@ export const saveSettingsAdmin = async (req, res) => {
       if (!h || typeof h !== 'object') return bad(res, 'Invalid opening hours');
       if (!HHMM.test(String(h.from)) || !HHMM.test(String(h.to))) return bad(res, 'Please use valid opening and closing times');
       const open = !!h.open;
-      if (open && h.from >= h.to) return bad(res, `${DAYS[d]}: closing time must be after opening time`);
-      hours[d] = { open, from: h.from, to: h.to };
+            if (!STAFF.includes(h.staff)) return bad(res, `${DAYS[d]}: choose who is working`);
+      hours[d] = { open, from: h.from, to: h.to, staff: h.staff };
     }
     next.hours = hours;
   }
@@ -56,6 +55,21 @@ export const saveSettingsAdmin = async (req, res) => {
       list.push({ date, reason: String(c?.reason || '').trim().slice(0, 60) });
     }
     next.closedDates = list.sort((a, b) => a.date.localeCompare(b.date));
+  }
+    if (body.timeOff !== undefined) {
+    if (!Array.isArray(body.timeOff) || body.timeOff.length > 300) return bad(res, 'Invalid time off');
+    const list = [];
+    for (const t of body.timeOff) {
+      const date = String(t?.date || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(date + 'T12:00:00').getTime())) return bad(res, 'Invalid time-off date');
+      if (!HHMM.test(String(t?.from)) || !HHMM.test(String(t?.to)) || t.from >= t.to) return bad(res, 'Time off: "to" must be after "from"');
+      const staff = (next.hours || cur.hours)[new Date(date + 'T12:00:00').getDay()].staff;
+      list.push({
+        id: String(t.id || `${date}-${t.from}-${Date.now()}-${list.length}`).slice(0, 60),
+        date, from: t.from, to: t.to, staff, reason: String(t?.reason || '').trim().slice(0, 60),
+      });
+    }
+    next.timeOff = list.sort((a, b) => (a.date + a.from).localeCompare(b.date + b.from));
   }
 
   if (body.notifications !== undefined) {

@@ -3,7 +3,7 @@ import { db } from '../config/db.js';
 import { sendMail, notifyOwner } from '../utils/mailer.js';
 import { hasConflict, toMinutes, typeOf, isPast } from '../utils/slots.js';
 import { createMeetEvent } from '../utils/googleMeet.js';
-import { closedReason, slotsFor } from '../utils/settings.js';
+import { closedReason, slotsFor, staffOn, timeOffClash } from '../utils/settings.js';
 const ADDRESS = '1567 Sherman Avenue, Evanston, IL 60201';
 const PHONE = '847-571-1910';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -41,9 +41,9 @@ export const getAvailability = (req, res) => {
 
   const slots = slotsFor(date).map((label) => ({
     time: label,
-    available: !(isPast(date, label) || hasConflict(db.data, { date, slot: label, duration })),
+    available: !(isPast(date, label) || timeOffClash(date, label, duration) || hasConflict(db.data, { date, slot: label, duration })),
   }));
-  res.json({ success: true, data: slots });
+  res.json({ success: true, data: slots, staff: staffOn(date) });
 };
 
 // Booked slot times for a given date (flat array for frontend)
@@ -188,6 +188,10 @@ export const createBooking = async (req, res) => {
     return res.status(400).json({ success: false, message: 'This service is currently unavailable' });
   }
 
+  if (timeOffClash(date, slot, service.duration)) {
+    return res.status(409).json({ success: false, message: 'That time is not available. Please pick another slot.' });
+  }
+
   if (hasConflict(db.data, { date, slot, duration: service.duration })) {
     return res.status(409).json({ success: false, message: 'Slot already booked' });
   }
@@ -203,7 +207,7 @@ export const createBooking = async (req, res) => {
     id: uuid(),
     serviceId, serviceName: service.name, price: service.price, duration: service.duration,
     type: typeOf({ serviceId, type: type === 'consultation' || type === 'visit' ? type : undefined }),
-    date, slot,
+    date, slot, staff: staffOn(date),
     name: String(name).trim().slice(0, 100),
     email: String(email).trim(),
     phone: String(phone || '').trim().slice(0, 30),

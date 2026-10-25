@@ -169,6 +169,7 @@ export default function BookingDrawer({ booking: b, consultations, consents = []
         <div className="adm-sec">
           <h4>Appointment</h4>
           <div className="adm-kv"><span>Service</span><b>{b.serviceName}</b></div>
+          {b.staff && <div className="adm-kv"><span>With</span><b>{b.staff}</b></div>}
           <div className="adm-kv"><span>Type</span><b><TypePill type={b.type} /></b></div>
           <div className="adm-kv"><span>Date</span><b>{fmtDate(b.date, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</b></div>
           <div className="adm-kv"><span>Time</span><b>{fmtRange(b.slot, b.duration)}</b></div>

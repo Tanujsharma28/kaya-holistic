@@ -53,7 +53,26 @@ export default function Confirmation() {
     poll();
     return () => { cancelled = true; };
   }, [sessionId, state]);
+   
+    // Online consultation: payment confirm hote hi seedha Consent Form par bhej do
+  const readyBooking = state?.booking || fetched?.booking;
+  const goToConsent = status === "ready" && readyBooking?.mode === "online";
+  useEffect(() => {
+    if (goToConsent) navigate(`/consent?booking=${readyBooking.id}`, { replace: true });
+  }, [goToConsent, readyBooking, navigate]);
 
+  if (goToConsent) {
+    return (
+      <div className="view cf-wrap">
+        <style>{CF_CSS}</style>
+        <div className="cf-container">
+          <div className="cf-spinner" />
+          <h1>Payment successful ✓</h1>
+          <p className="cf-sub">Taking you to your Facial Consent Form…</p>
+        </div>
+      </div>
+    );
+  }
   if (status === "polling") {
     return (
       <div className="view cf-wrap">
