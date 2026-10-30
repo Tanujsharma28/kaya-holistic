@@ -3,9 +3,9 @@ export const STAFF_PROFILES = {
   Puja: {
     fullName: "Puja Gupta",
     role: "Licensed Esthetician & Founder",
-    bio: "Licensed esthetician with over 15 years of experience. Motivated by her passion for helping others with their skin, Puja opened Kaya Holistic Spa 8 years ago. Her approach is healing, holistic and result oriented — she treats more than the surface to cultivate a radiant, lasting glow.",
-    experience: "15+ years of experience",
-    specialties: ["Opened Kaya 8 years ago", "GLO Skin Body Certified", "Acne & Anti-Aging Specialist"],
+    bio: "Licensed esthetician with over 16 years of experience. Motivated by her passion for helping others with their skin, Puja opened Kaya Holistic Spa 9 years ago. Her approach is healing, holistic and result oriented — she treats more than the surface to cultivate a radiant, lasting glow.",
+    experience: "16+ years of experience",
+    specialties: ["Opened Kaya 9 years ago", "GLO Skin Body Certified", "Acne & Anti-Aging Specialist"],
   },
   Sia: {
     fullName: "Sia",

@@ -177,7 +177,7 @@ export default function Consultation() {
         <div className="meet-avatar">P</div>
         <div className="meet-info">
           <h3>Meet Puja Gupta</h3>
-          <p className="muted">Licensed Esthetician · 15+ years · GLO Skin Body Certified</p>
+          <p className="muted">Licensed Esthetician · 16+ years · GLO Skin Body Certified</p>
           <p>Puja has spent over a decade helping clients in Evanston and Chicago understand their skin, not just treat it. Every consultation is one-on-one, never templated.</p>
         </div>
       </div>

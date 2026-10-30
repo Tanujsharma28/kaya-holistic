@@ -32,8 +32,6 @@ const SERVICE_IMG = {
   signature:  IMG("1544161515-4ab6ce6db874"),
   // Lymphatic drainage – sculpting facial massage
   lymph:      IMG("1515377905703-c4788e51af15"),
-  // Purifying facial – deep pore cleansing, charcoal
-  purify:     IMG("1616394584738-fc6e612e71b9"),
   // Clear skin / acne facial – breakout-prone skin treatment
   clear:      IMG("1598440947619-2c35fc9aa908"),
   // Rosacea / sensitive skin – calming gentle facial
@@ -46,10 +44,9 @@ const SERVICE_IMG = {
   teen:       IMG("1508214751196-bcfd4ca60f91"),
   // Dermaplaning – blade gliding for smooth glow
   dermaplane: IMG("1556228852-80b6678ced23"),
+  dermaplaning: IMG("1556228852-80b6678ced23"),
   // Brightening facial – radiant lit-from-within skin
   brighten:   IMG("1571875257727-256c39da42af"),
-  // MD Peel – chemical peel, skin resurfacing
-  mdpeel:     IMG("1586996292898-71f4036c4e07"),
   // Virtual consultation – video skincare session
   virt:       IMG("1587614382346-4ec70e388b28"),
 };
@@ -117,16 +114,15 @@ const SERVICE_META = {
     tag: null,
   },
   signature: { icon: "✨", tagline: "Tailored by Puja or Sia", tag: "Most Popular" },
-  lymph:     { icon: "💆", tagline: "Lift · sculpt · de-puff", tag: null },
-  purify:    { icon: "💧", tagline: "Deep clarity for clear skin", tag: null },
+  lymph:     { icon: "💆", tagline: "Ayurvedic Gua Sha · sculpt · de-puff", tag: null },
   clear:     { icon: "🍃", tagline: "Calm breakouts, clear congestion", tag: null },
   rosacea:   { icon: "🌿", tagline: "Soothe redness & sensitivity", tag: null },
   corrective:{ icon: "💡", tagline: "LED light therapy", tag: null },
   holistic:  { icon: "🌿", tagline: "Total balance & glow", tag: null },
   teen:      { icon: "🌱", tagline: "Gentle care for young skin", tag: null },
   dermaplane:{ icon: "🪞", tagline: "Smooth, instant glow", tag: null },
+  dermaplaning:{ icon: "🪞", tagline: "Smooth, instant glow", tag: null },
   brighten:  { icon: "🌟", tagline: "Brighter, clearer skin", tag: null },
-  mdpeel:    { icon: "💎", tagline: "Resurface & refine", tag: null },
   virt:    {
     icon: "🖥️",
     tagline: "Expert skin advice, anywhere",
@@ -147,6 +143,7 @@ export default function ServiceCard({ service }) {
   const det = SERVICE_DETAILS[service.id];
   const text = service.desc || meta.desc;            // card par chhota text
   const longText = det?.long || text;                 // popup me poora text
+  const expectText = det?.expect;
   const [imgOk, setImgOk] = useState(true);           // /services/<id>.jpg na mile to art panel
   const [c1, c2, e1, e2, e3] = det?.art || ["#f3e6d3", "#d9bb93", meta.icon, "🌿", "✨"];
 
@@ -237,7 +234,7 @@ export default function ServiceCard({ service }) {
                 </div>
                 {!isVirt && (
                   <p className="lightbox-desc" style={{ fontSize: ".88rem" }}>
-                    <b>What to expect:</b> a relaxing, customised service with spa music, a cozy bed, hot towels, aromatherapy, answers to your skin-care questions and tips for regular care at home.
+                    <b>What to expect:</b> {expectText || "a relaxing, customised service with spa music, a cozy bed, hot towels, aromatherapy, answers to your skin-care questions and tips for regular care at home."}
                   </p>
                 )}
                 <div className="lightbox-footer-action">

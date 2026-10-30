@@ -5,7 +5,7 @@ const DEFAULT_CATEGORIES = ['Facials', 'Advanced Facials', 'Anti-Aging', 'Acne &
 // Skin Quiz ke 4 results. Left side: quiz me customer ka jawab, right side: kaunsi service dikhani hai.
 const QUIZ_RESULTS = [
   ['advanced', 'Advanced Facial', 'Quiz goal: Deep Hydration & Glow (Hydra / Nano Needling)'],
-  ['anti-aging', 'Anti-Aging Facial', 'Quiz goal: Anti-Aging & Firmness (Gua Sha / Anti-Aging / Microdermabrasion + Peel)'],
+  ['anti-aging', 'Anti-Aging Facial', 'Quiz goal: Anti-Aging & Firmness (Gua Sha / Anti-Aging)'],
   ['acne', 'Acne + Deep Pore Cleansing', 'Quiz goal: Acne & Blemish Clearing (Ultimate / Clear)'],
   ['calming', 'Botanical Calming', 'Customer has High Sensitivity (Rosacea / Corrective LED)'],
   ['signature', 'Customize / Signature Facial', 'Quiz goal: Pigmentation & Brightening'],

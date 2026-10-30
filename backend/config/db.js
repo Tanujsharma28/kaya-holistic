@@ -59,6 +59,9 @@ if ((db.data.settings.seedVersion || 1) < SEED_VERSION) {
     else if (cur.userEdited) continue; 
     else Object.assign(cur, { name: s.name, price: s.price, duration: s.duration, category: s.category, desc: s.desc, popular: !!s.popular });
   }
+  // Menu se hataye gaye services purani DB se bhi nikaalo
+  const removed = seed.settings?.removedServiceIds || [];
+  if (removed.length) db.data.services = db.data.services.filter((x) => !removed.includes(x.id));
   db.data.settings.quizMap = { ...defaultQuizMap };
   db.data.settings.seedVersion = SEED_VERSION;
 }

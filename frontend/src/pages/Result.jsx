@@ -73,10 +73,10 @@ const FACIAL_MAP = {
     fallback: [{ id: 'hydra', name: 'Hydra Facial', price: 200, duration: 60 }, { id: 'nano', name: 'Nano Needling Facial', price: 200, duration: 60 }],
   },
   'anti-aging': {
-    name: 'Anti-Aging Facial', badge: 'Best for Anti-Aging', ids: ['lymph', 'anti', 'mdpeel'],
-    duration: '60-90 min', price: '$125',
-    desc: 'Rejuvenating & lifting care: Gua Sha lymphatic massage, the Anti-Aging Facial with microdermabrasion and chemical peel, or Microdermabrasion with Peel.',
-    fallback: [{ id: 'lymph', name: 'Lymphatic Drainage Massage Facial (Gua Sha)', price: 130, duration: 90 }, { id: 'anti', name: 'Anti-Aging Facial', price: 145, duration: 75 }, { id: 'mdpeel', name: 'Microdermabrasion Facial with Peel', price: 125, duration: 60 }],
+    name: 'Anti-Aging Facial', badge: 'Best for Anti-Aging', ids: ['lymph', 'anti'],
+    duration: '75-90 min', price: '$130',
+    desc: 'Rejuvenating & lifting care: Gua Sha lymphatic massage, or the Anti-Aging Facial with microdermabrasion and chemical peel.',
+    fallback: [{ id: 'lymph', name: 'Lymphatic Drainage Massage Facial (Gua Sha)', price: 130, duration: 90 }, { id: 'anti', name: 'Anti-Aging Facial', price: 145, duration: 75 }],
   },
   acne: {
     name: 'Acne & Deep Pore Cleansing', badge: 'Best for Oily & Acne-Prone', ids: ['ultimate', 'clear'],

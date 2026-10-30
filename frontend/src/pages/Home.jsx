@@ -33,7 +33,6 @@ function ServicesCarousel({ services = [] }) {
   const slotStyle = (d) => {
     const abs = Math.abs(d);
     return {
-      /* Fixed: Added proper math operators (* and -) for 3D positioning */
       transform: `translateX(${d * 62}%) translateZ(${-abs * 140}px) rotateY(${-d * 38}deg) scale(${1 - abs * 0.08})`,
       opacity: abs > 2 ? 0 : 1 - abs * 0.28,
       zIndex: 10 - abs,
@@ -49,7 +48,6 @@ function ServicesCarousel({ services = [] }) {
       onPointerDown={(e) => { startX.current = e.clientX; }}
       onPointerUp={(e) => {
         if (startX.current === null) return;
-        /* Fixed: Added minus operator for drag calculation */
         const diff = e.clientX - startX.current;
         if (Math.abs(diff) > 50) go(diff < 0 ? 1 : -1);
         startX.current = null;
@@ -102,7 +100,9 @@ export default function Home() {
   }, []);
 
   const catOf = (s) => s.category || "Facials";
-  const categories = ["All", ...Array.from(new Set(services.map(catOf)))];
+  const rawCats = Array.from(new Set(services.map(catOf)));
+  // Express hamesha top bar me sabse pehle
+  const categories = ["All", ...rawCats.filter((c) => c === "Express"), ...rawCats.filter((c) => c !== "Express")];
   const filtered = cat === "All" ? services : services.filter((s) => catOf(s) === cat);
   const shown = filtered.length ? filtered : services;
 
@@ -110,7 +110,7 @@ export default function Home() {
     <div className="view">
       <section className="hero">
         <div>
-          <div className="hero-eyebrow"><span className="hero-dot" />Licensed Esthetician · 15+ Years</div>
+          <div className="hero-eyebrow"><span className="hero-dot" />Licensed Esthetician · 16+ Years</div>
           <h1>Skin care that starts with <span className="italic-accent">knowing your skin</span>.</h1>
           <p>Puja Gupta treats the cause of a concern, not only its surface. Take a one-minute quiz to see what suits your skin, then book your visit in Evanston.</p>
           <div className="hero-ctas">
@@ -142,20 +142,9 @@ export default function Home() {
             </div>
           ) : (
             <>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", margin: "0 0 18px" }}>
+              <div className="svc-cats">
                 {categories.map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => setCat(c)}
-                    style={{
-                      padding: "7px 16px", borderRadius: 99, cursor: "pointer", fontSize: ".85rem", fontFamily: "inherit",
-                      border: "1.5px solid #a67c52",
-                      background: cat === c ? "#a67c52" : "transparent",
-                      color: cat === c ? "#fff" : "#7c5c38", fontWeight: 600,
-                    }}
-                  >
-                    {c}
-                  </button>
+                  <button key={c} className={`svc-cat ${cat === c ? "on" : ""}`} onClick={() => setCat(c)}>{c}</button>
                 ))}
               </div>
               <ServicesCarousel key={cat} services={shown} />
@@ -170,7 +159,7 @@ export default function Home() {
 
       <Reveal>
         <div className="trust-row">
-          <div className="trust-card"><span className="trust-num">15+</span><p>Years of practice in advanced facial treatments</p></div>
+          <div className="trust-card"><span className="trust-num">16+</span><p>Years of practice in advanced facial treatments</p></div>
           <div className="trust-card"><span className="trust-num">120+</span><p>Five-star reviews from Evanston and Chicago clients</p></div>
           <div className="trust-card"><span className="trust-num">$45</span><p>Virtual skin consultation — book from anywhere</p></div>
         </div>

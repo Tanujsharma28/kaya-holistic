@@ -23,13 +23,18 @@ export const SERVICE_DETAILS = {
     art: ["#e3f1e4", "#b4d8b8", "🌿", "⏱️", "💧"],
   },
   teen: {
-    long: "A teen facial begins with a thorough skin analysis, then gentle exfoliation with a pumpkin enzyme to loosen surface dry cells. Steam softens the pores for a deep cleanse and safe manual extractions that protect the skin's integrity.",
-    points: ["Skin analysis", "Gentle pumpkin enzyme exfoliation", "Steam & deep pore cleansing", "Safe manual extractions"],
+    long: "This rapid-results treatment begins with a deep, purifying double cleanse under warm steam to open tight pores. Next, we apply a gentle exfoliating treatment to loosen debris, followed by precise, professional extractions to clear out stubborn blockages. We finish with a cooling, antibacterial mist and a lightweight, oil-free hydration barrier to protect and soothe the skin.",
+    points: ["Deep double cleanse under warm steam", "Gentle exfoliation to loosen debris", "Professional extractions", "Cooling antibacterial mist & oil-free hydration"],
     art: ["#e6f3ea", "#bde0c8", "🌱", "🫧", "😊"],
   },
   dermaplane: {
     long: "Dermaplaning gently exfoliates and refines the skin. A sterile medical scalpel glides over the surface in light, feathering strokes, which is typically painless, and removes dead skin cells and peach fuzz. It lets skin breathe, helps skin-care products absorb deeper, and has no downtime. Paired with microdermabrasion for an extra-smooth finish.",
     points: ["Sterile medical scalpel, light strokes", "Removes dead cells & peach fuzz", "Helps products absorb deeper", "No downtime"],
+    art: ["#f4ecee", "#dcc6cc", "🪞", "✨", "🌸"],
+  },
+  dermaplaning: {
+    long: "Dermaplaning gently exfoliates and refines the skin. A sterile blade glides over the surface in light, feathering strokes, typically painless, removing dead skin cells and peach fuzz. It leaves skin instantly smooth and bright, helps skin-care products absorb deeper, and has no downtime. A perfect add-on to any facial.",
+    points: ["Sterile blade, light strokes", "Removes dead cells & peach fuzz", "Helps products absorb deeper", "No downtime"],
     art: ["#f4ecee", "#dcc6cc", "🪞", "✨", "🌸"],
   },
   brighten: {
@@ -48,8 +53,16 @@ export const SERVICE_DETAILS = {
     art: ["#e7e0f2", "#c4b4de", "🧬", "✨", "🔬"],
   },
   lymph: {
-    long: "A Gua Sha facial massage rooted in traditional Chinese medicine. A smooth-edged stone is used to improve circulation and promote lymphatic drainage in the face.",
-    points: ["Traditional Gua Sha stone", "Improves circulation", "Promotes lymphatic drainage", "Relaxing face massage"],
+    long: "Combining Gua Sha strokes with targeted lymphatic drainage, we help open the body's natural pathways to clear waste and toxic buildup. The result is an instant, healthy skin glow that radiates from the root cause of surface health. Our Gua Sha is Ayurvedic in style, not the Chinese way: it is done with warm Ayurvedic oils and a slow, soothing rhythm that balances skin and calms the nervous system.",
+    points: [
+      "Sculpts and defines the jawline, cheekbones and brow area",
+      "Reduces facial puffiness and fluid retention instantly",
+      "Boosts microcirculation to restore a natural, vibrant glow",
+      "Detoxifies the skin tissue by moving fluid toward key lymph nodes",
+      "Melts away deep facial tension, smooths tight muscles and relaxes the nervous system",
+      "Delivers traditional Ayurvedic hydration to deeply nourish and balance all skin types",
+    ],
+    expect: "Your session begins with a gentle clearing of the lymphatic pathways around the collarbones and neck to open up circulation. Next, the facial tissue is prepared with a warm, nutrient-rich Ayurvedic oil blend. Using precise, ultra-light upward and outward sweeping motions, the stone tool glides seamlessly across your face and neck. This soothing, completely painless rhythm induces a deep state of physical relaxation while actively contouring and detoxifying your skin.",
     art: ["#f4e1e1", "#e0b4b4", "💆", "🪨", "🌸"],
   },
   anti: {
@@ -57,25 +70,15 @@ export const SERVICE_DETAILS = {
     points: ["Microdermabrasion + glycolic peel", "Customised to your skin", "Aging, pigmentation & dehydration", "Lines & wrinkles"],
     art: ["#f3e3d0", "#dbb98f", "⏳", "✨", "🧴"],
   },
-  mdpeel: {
-    long: "Microdermabrasion with a peel for deeper exfoliation, working on discoloration and pigmentation for a smoother, more even look.",
-    points: ["Microdermabrasion", "Peel for deeper exfoliation", "Discoloration & pigmentation", "Smoother-looking skin"],
-    art: ["#efe6dc", "#d2b99c", "💎", "🧴", "✨"],
-  },
   ultimate: {
-    long: "A relaxing enzyme facial that uses fruit enzymes to exfoliate and support the skin's natural turnover, with vitamin A and beta-carotene. Glycolic acid helps improve tone and texture while gentle enzymes lift the superficial layers for a healthy glow.",
-    points: ["Fruit enzyme exfoliation", "Vitamin A & beta-carotene", "Glycolic acid for tone & texture", "Healthy glow"],
+    long: "A relaxing enzyme facial that uses fruit enzymes to exfoliate and support the skin's natural turnover, with vitamin A and beta-carotene. Lactic acid helps improve tone and texture while gentle enzymes lift the superficial layers for a healthy glow.",
+    points: ["Fruit enzyme exfoliation", "Vitamin A & beta-carotene", "Lactic acid for tone & texture", "Healthy glow"],
     art: ["#dcebe6", "#a9cfc3", "🔍", "🫧", "💚"],
   },
   clear: {
     long: "Say goodbye to problem skin and hello to a clearer complexion. Deep pore cleansing clarifies and balances the skin to reduce the signs of acne, and a high-frequency light treatment targets acne-causing bacteria.",
     points: ["Deep pore cleansing", "Clarifies & balances skin", "High-frequency light treatment", "Reduces the signs of acne"],
     art: ["#dff0dc", "#aed3a8", "🍃", "💧", "🌿"],
-  },
-  purify: {
-    long: "Intensive steam extraction, enzymatic exfoliation and an activated charcoal mask for a fully detoxed, clarified complexion.",
-    points: ["Intensive steam extraction", "Enzymatic exfoliation", "Activated charcoal mask", "Clarified complexion"],
-    art: ["#dde3e6", "#9fb0b8", "♨️", "⚫", "💧"],
   },
   deep: {
     long: "A targeted facial treatment to extract blemishes and manage oil production. Regular deep pore cleansing helps improve the look of problem skin and breakouts.",
