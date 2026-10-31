@@ -8,8 +8,6 @@ import { SERVICE_DETAILS } from "../data/serviceDetails";
 // Har service ke liye matching photo (Unsplash CDN – relevant to exact treatment)
 const IMG = (id) => `https://images.unsplash.com/photo-${id}?w=600&h=700&fit=crop&auto=format&q=80`;
 const SERVICE_IMG = {
-  // Express facial – quick refresh, esthetician hands on glowing skin
-  express:    IMG("1570172619644-dfd03ed5d881"),
   // Deep cleansing – steam + clay mask on face
   deep:       IMG("1596755389378-c31d21fd1273"),
   // Ultimate – gua sha stone massage, full ritual
@@ -24,31 +22,35 @@ const SERVICE_IMG = {
   nano:       IMG("1612349317150-e413f6a5b16d"),
   // Men's facial – man on treatment bed, clean skin
   gent:       IMG("1621607512214-68297480165e"),
-  // Indian head massage – head & neck relaxation
-  ihm:        IMG("1600334129128-685c5582fd35"),
+  // Indian head massage – local uploaded image
+  ihm:        null,
+  ihm30:      null,
   // Full face waxing – precision waxing close-up
-  wax:        IMG("1560750588-73207b1ef5b8"),
+  wax:          IMG("1560750588-73207b1ef5b8"),
   // Signature tailored facial – luxury layered facial
-  signature:  IMG("1544161515-4ab6ce6db874"),
+  signature:    IMG("1544161515-4ab6ce6db874"),
   // Lymphatic drainage – sculpting facial massage
-  lymph:      IMG("1515377905703-c4788e51af15"),
+  lymph:        IMG("1515377905703-c4788e51af15"),
   // Clear skin / acne facial – breakout-prone skin treatment
-  clear:      IMG("1598440947619-2c35fc9aa908"),
+  clear:        IMG("1598440947619-2c35fc9aa908"),
   // Rosacea / sensitive skin – calming gentle facial
-  rosacea:    IMG("1512290923902-8a9f81dc236c"),
+  rosacea:      IMG("1512290923902-8a9f81dc236c"),
   // LED corrective therapy – LED light panel on face
-  corrective: IMG("1487412720507-e7ab37603c6f"),
-  // Holistic facial – full balance, botanical oils
-  holistic:   IMG("1471639549519-80f7c8b50be4"),
+  corrective:   IMG("1487412720507-e7ab37603c6f"),
   // Teen gentle facial – young skin care
-  teen:       IMG("1508214751196-bcfd4ca60f91"),
+  teen:         IMG("1508214751196-bcfd4ca60f91"),
   // Dermaplaning – blade gliding for smooth glow
-  dermaplane: IMG("1556228852-80b6678ced23"),
-  dermaplaning: IMG("1556228852-80b6678ced23"),
+  dermaplane:   IMG("1556228852-80b6678ced23"),
   // Brightening facial – radiant lit-from-within skin
-  brighten:   IMG("1571875257727-256c39da42af"),
+  brighten:     IMG("1571875257727-256c39da42af"),
   // Virtual consultation – video skincare session
-  virt:       IMG("1587614382346-4ec70e388b28"),
+  virt:         IMG("1587614382346-4ec70e388b28"),
+  // Waxing & Threading sub-services – use local uploaded images (no Unsplash override)
+  "wax-guasha": null,
+  "wax-clear":  null,
+  "wax-led":    null,
+  "wax-derma":  null,
+  "wax-ihm":    null,
 };
 
 
@@ -107,21 +109,30 @@ const SERVICE_META = {
     desc: "Indian head massage combined with a face & neck treatment for complete upper-body relaxation.",
     tag: null,
   },
+  ihm30:     { icon: "🙏", tagline: "Head · face · décolletage", tag: null },
+  back:      { icon: "🌿", tagline: "Clear, smooth, refreshed", tag: null },
+  nuface:    { icon: "⚡", tagline: "Lift & tone upgrade", tag: "Add-on" },
+  enzyme:    { icon: "🍃", tagline: "Extra glow upgrade", tag: "Add-on" },
+  ledup:     { icon: "💡", tagline: "Light therapy upgrade", tag: "Add-on" },
+  chempeel:  { icon: "🧴", tagline: "Deeper exfoliation upgrade", tag: "Add-on" },
   wax:     {
     icon: "🌸",
-    tagline: "Smooth & long-lasting",
-    desc: "Precision facial waxing using low-temperature stripless wax — gentle even on sensitive skin.",
+    tagline: "Full body · facial · threading · from $15",
+    desc: "Full waxing & threading menu — eyebrows, lips, face, underarms, arms, legs, bikini and more. Low-temperature stripless wax, gentle even on sensitive skin.",
     tag: null,
   },
+  "wax-guasha": { icon: "🪨", tagline: "Ayurvedic Gua Sha · sculpt · de-puff · relax", tag: null },
+  "wax-clear":  { icon: "🍃", tagline: "Calm breakouts · clear congestion", tag: null },
+  "wax-led":    { icon: "💡", tagline: "LED light therapy · all skin types", tag: null },
+  "wax-derma":  { icon: "🪞", tagline: "Smooth · glow · peach fuzz removal", tag: "Popular" },
+  "wax-ihm":    { icon: "🙏", tagline: "Traditional Ayurvedic head massage", tag: null },
   signature: { icon: "✨", tagline: "Tailored by Puja or Sia", tag: "Most Popular" },
   lymph:     { icon: "💆", tagline: "Ayurvedic Gua Sha · sculpt · de-puff", tag: null },
   clear:     { icon: "🍃", tagline: "Calm breakouts, clear congestion", tag: null },
   rosacea:   { icon: "🌿", tagline: "Soothe redness & sensitivity", tag: null },
   corrective:{ icon: "💡", tagline: "LED light therapy", tag: null },
-  holistic:  { icon: "🌿", tagline: "Total balance & glow", tag: null },
   teen:      { icon: "🌱", tagline: "Gentle care for young skin", tag: null },
   dermaplane:{ icon: "🪞", tagline: "Smooth, instant glow", tag: null },
-  dermaplaning:{ icon: "🪞", tagline: "Smooth, instant glow", tag: null },
   brighten:  { icon: "🌟", tagline: "Brighter, clearer skin", tag: null },
   virt:    {
     icon: "🖥️",
@@ -144,6 +155,9 @@ export default function ServiceCard({ service }) {
   const text = service.desc || meta.desc;            // card par chhota text
   const longText = det?.long || text;                 // popup me poora text
   const expectText = det?.expect;
+  const isWax = service.id === "wax";
+  const durLabel = isWax ? "15–45 min" : `${service.duration} min`;
+  const pricePre = isWax ? "From " : "";
   const [imgOk, setImgOk] = useState(true);           // /services/<id>.jpg na mile to art panel
   const [c1, c2, e1, e2, e3] = det?.art || ["#f3e6d3", "#d9bb93", meta.icon, "🌿", "✨"];
 
@@ -174,7 +188,8 @@ export default function ServiceCard({ service }) {
     navigate("/booking");
   };
 
-  const img = SERVICE_IMG[service.id];
+  // For wax sub-services: null in SERVICE_IMG means use local /services/<id>.jpg
+  const img = SERVICE_IMG[service.id] === null ? undefined : SERVICE_IMG[service.id];
 
   return (
     <>
@@ -182,13 +197,13 @@ export default function ServiceCard({ service }) {
         {badge && <span className="svc-tag">{badge}</span>}
         <div className="svc-card-top">
           <div className="svc-card-icon">{meta.icon}</div>
-          <div className="svc-card-dur">{service.duration} min</div>
+          <div className="svc-card-dur">{durLabel}</div>
         </div>
         <h4 className="svc-card-name">{service.name}</h4>
         <p className="svc-card-tagline">{meta.tagline}</p>
         <p className="svc-card-desc">{text}</p>
         <div className="svc-card-footer">
-          <span className="svc-card-price">${service.price}</span>
+          <span className="svc-card-price">{pricePre}${service.price}</span>
           <button className="svc-card-btn">View details →</button>
         </div>
       </div>
@@ -201,7 +216,24 @@ export default function ServiceCard({ service }) {
             <div className="kaya-lightbox-grid">
               <div className="kaya-lightbox-img-wrap">
                 {imgOk ? (
-                  <img src={`/services/${service.id}.jpg`} alt={service.name} onError={() => setImgOk(false)} />
+                 det?.imgFit === "contain" ? (
+  <>
+    <img src={`/services/${service.id}.jpg`} alt="" aria-hidden="true" className="svc-img-blur" />
+    <img
+      src={`/services/${service.id}.jpg`}
+      alt={service.name}
+      className="svc-img-full"
+      onError={() => setImgOk(false)}
+    />
+  </>
+) : (
+  <img
+    src={`/services/${service.id}.jpg`}
+    alt={service.name}
+    style={{ objectPosition: det?.imgPos || "center" }}
+    onError={() => setImgOk(false)}
+  />
+)
                 ) : (
                   <div className="svc-modal-art" style={{ background: `linear-gradient(160deg, ${c1}, ${c2})` }}>
                     <div className="svc-modal-icon">{e1}</div>
@@ -225,7 +257,7 @@ export default function ServiceCard({ service }) {
                 <p className="lightbox-desc">{longText}</p>
 
                 <div className="lightbox-highlights-sec">
-                  <h5>Key Benefits & Details:</h5>
+                  <h5>{det?.pointsTitle || "Key Benefits & Details:"}</h5>
                   <ul className="lightbox-highlights-list">
                     {highlights.map((point, i) => (
                       <li key={i}><span className="check-icon">🌿</span><span>{point}</span></li>
@@ -238,7 +270,7 @@ export default function ServiceCard({ service }) {
                   </p>
                 )}
                 <div className="lightbox-footer-action">
-                  <button className="btn primary-spa-btn" onClick={handleBook}>Book Now · ${service.price}</button>
+                  <button className="btn primary-spa-btn" onClick={handleBook}>Book Now · {pricePre}${service.price}</button>
                   <button className="btn ghost-spa-btn" onClick={() => setOpen(false)}>Close</button>
                 </div>
               </div>

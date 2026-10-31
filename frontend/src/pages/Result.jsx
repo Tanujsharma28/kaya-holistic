@@ -74,27 +74,27 @@ const FACIAL_MAP = {
   },
   'anti-aging': {
     name: 'Anti-Aging Facial', badge: 'Best for Anti-Aging', ids: ['lymph', 'anti'],
-    duration: '75-90 min', price: '$130',
+    duration: '60-75 min', price: '$130',
     desc: 'Rejuvenating & lifting care: Gua Sha lymphatic massage, or the Anti-Aging Facial with microdermabrasion and chemical peel.',
-    fallback: [{ id: 'lymph', name: 'Lymphatic Drainage Massage Facial (Gua Sha)', price: 130, duration: 90 }, { id: 'anti', name: 'Anti-Aging Facial', price: 145, duration: 75 }],
+    fallback: [{ id: 'lymph', name: 'Gua Sha Massage Facial', price: 130, duration: 60 }, { id: 'anti', name: 'Anti-Aging Facial (75 Min)', price: 145, duration: 75 }],
   },
   acne: {
     name: 'Acne & Deep Pore Cleansing', badge: 'Best for Oily & Acne-Prone', ids: ['ultimate', 'clear'],
     duration: '60 min', price: '$90',
     desc: 'Deep Clarity & Pores: the Ultimate Facial for deep pore cleansing, or the Clear Facial (our acne facial) to calm breakouts and clear congestion.',
-    fallback: [{ id: 'ultimate', name: 'Ultimate Facial (Deep Clarity & Pores)', price: 95, duration: 60 }, { id: 'clear', name: 'Clear Facial (Acne Facial)', price: 90, duration: 60 }],
+    fallback: [{ id: 'ultimate', name: 'Ultimate Facial (60 min)', price: 95, duration: 60 }, { id: 'clear', name: 'Clear Facial', price: 90, duration: 60 }],
   },
   calming: {
     name: 'Botanical Calming Facial', badge: 'Best for Sensitive Skin', ids: ['rosacea', 'corrective'],
     duration: '60 min', price: '$120',
     desc: 'Gentle, soothing care for sensitive and redness-prone skin: the Rosacea Facial, or the Corrective Facial with LED light.',
-    fallback: [{ id: 'rosacea', name: 'Rosacea Facial (Botanical Calming)', price: 120, duration: 60 }, { id: 'corrective', name: 'Corrective Facial (LED Light)', price: 120, duration: 60 }],
+    fallback: [{ id: 'rosacea', name: 'Rosacea Facial', price: 120, duration: 60 }, { id: 'corrective', name: 'Corrective Facial w/ LED', price: 120, duration: 60 }],
   },
   signature: {
     name: 'Kaya Signature (Customize) Facial', badge: 'Most Popular', ids: ['signature', 'gent'],
-    duration: '90 min', price: '$85',
+    duration: '60 min', price: '$85',
     desc: "Our iconic all-in-one customized facial tailored by Puja or Sia. Combines cleansing, exfoliation, targeted treatment, and a face massage. Gentleman's Facial is the same custom facial for men.",
-    fallback: [{ id: 'signature', name: 'Kaya Signature Facial (Customize Facial)', price: 85, duration: 90 }, { id: 'gent', name: "Gentleman's Facial (Customize Facial)", price: 85, duration: 45 }],
+    fallback: [{ id: 'signature', name: 'Customized Facial', price: 85, duration: 60 }, { id: 'gent', name: "Gentleman's Facial", price: 95, duration: 60 }],
   },
 };
 
@@ -827,6 +827,22 @@ export default function Result() {
             </div>
           </div>
         </section>
+
+        {/* ── AI REPORT NOTE ── */}
+        <div style={{
+          margin: '8px 0 28px', padding: '18px 22px', borderRadius: 16,
+          background: '#fff', border: '1px solid #e7dccb', borderLeft: '4px solid #a67c52',
+        }}>
+          <div style={{ fontWeight: 700, fontSize: '.95rem', color: '#7c5c38', marginBottom: 6 }}>
+            A note about this report
+          </div>
+          <p style={{ margin: 0, fontSize: '.9rem', lineHeight: 1.65, color: '#5c4e3f', maxWidth: 'none' }}>
+            This report is AI-generated from your quiz answers and is meant as a general guide. When you visit us in person,
+            our licensed specialists will examine your skin and your concerns closely, and their assessment may differ from
+            this AI report. Please don't worry about any difference. Your specialist will recommend the services and
+            products that suit your skin best, and the final choice is always yours.
+          </p>
+        </div>
 
         {/* ── 2. KEY INGREDIENTS ── */}
         <section className="res-section">

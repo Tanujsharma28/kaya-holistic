@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getServices, getCachedServices } from "../api/client";
 import ServiceCard from "../components/ServiceCard";
@@ -87,7 +87,6 @@ function ServicesCarousel({ services = [] }) {
     </div>
   );
 }
-
 
 export default function Home() {
   const [services, setServices] = useState(getCachedServices());

@@ -1,30 +1,44 @@
-{
- "services": [
-  {"id":"express","name":"Express Facial","price":75,"duration":30,"category":"Express","desc":"A targeted express facial to cleanse, exfoliate & hydrate. Perfect for a lunch-break refresh.","active":true},
-  {"id":"teen","name":"Teen Facial","price":75,"duration":30,"category":"Express","desc":"A rapid-results teen facial: double cleanse under warm steam, gentle exfoliation, professional extractions, a cooling antibacterial mist and light oil-free hydration.","active":true},
-  {"id":"deep","name":"Deep Pore Cleansing","price":75,"duration":30,"category":"Express","desc":"Express deep pore cleansing with steam and extractions, 30 minutes.","active":true},
-  {"id":"signature","name":"Kaya Signature Facial (Customize Facial)","price":85,"duration":90,"category":"Facials","desc":"Our iconic all-in-one custom facial tailored by Puja or Sia. Combines cleansing, exfoliation, targeted treatment, and a face massage.","active":true},
-  {"id":"holistic","name":"Holistic Glow Facial","price":120,"duration":90,"category":"Facials","desc":"A full holistic facial ritual for a radiant, balanced glow, customized to your skin and stress level.","active":true},
-  {"id":"gent","name":"Gentleman's Facial (Customize Facial)","price":85,"duration":45,"category":"Facials","desc":"A customized basic facial designed for men: deep pore cleanse and exfoliation, tough on congestion, gentle on texture.","active":true},
-  {"id":"dermaplane","name":"Dermaplaning & Microdermabrasion Facial","price":125,"duration":60,"category":"Facials","desc":"Dermaplaning combined with microdermabrasion for smooth, glowing skin. Very popular.","active":true,"popular":true},
-  {"id":"brighten","name":"Brightening Facial with Peel & Deep Pore Cleansing","price":95,"duration":60,"category":"Facials","desc":"Brightening peel with deep pore cleansing to even tone and clear congestion. Very popular.","active":true,"popular":true},
-  {"id":"hydra","name":"Hydra Facial","price":200,"duration":60,"category":"Advanced Facials","desc":"Deep hydration with gentle enzyme exfoliation, radio frequency, serum and a double mask.","active":true,"popular":true},
-  {"id":"nano","name":"Nano Needling Facial","price":200,"duration":60,"category":"Advanced Facials","desc":"An anti-aging facial that helps reduce acne, scars, pore size and fine lines.","active":true,"popular":true},
-  {"id":"lymph","name":"Lymphatic Drainage Massage Facial (Gua Sha)","price":130,"duration":90,"category":"Anti-Aging","desc":"Ayurvedic Gua Sha with targeted lymphatic drainage to de-puff, sculpt, relax and bring out a natural glow.","active":true,"popular":true},
-  {"id":"anti","name":"Anti-Aging Facial","price":145,"duration":75,"category":"Anti-Aging","desc":"Microdermabrasion plus a chemical peel to treat discoloration and pigmentation and soften fine lines.","active":true,"popular":true},
-  {"id":"ultimate","name":"Ultimate Facial (Deep Clarity & Pores)","price":95,"duration":60,"category":"Acne & Deep Clarity","desc":"Deep pore clearing facial combining extractions, lactic acid and enzyme exfoliation and a clarifying mask for congested skin.","active":true},
-  {"id":"clear","name":"Clear Facial (Acne Facial)","price":90,"duration":60,"category":"Acne & Deep Clarity","desc":"A targeted acne facial to calm breakouts, clear congestion and balance oil.","active":true},
-  {"id":"rosacea","name":"Rosacea Facial (Botanical Calming)","price":120,"duration":60,"category":"Botanical Calming","desc":"Gentle barrier repair using chamomile, centella asiatica, and oat extracts. Designed for sensitive, reactive, or redness-prone skin.","active":true},
-  {"id":"corrective","name":"Corrective Facial (LED Light)","price":120,"duration":60,"category":"Botanical Calming","desc":"LED light therapy facial to help correct redness, uneven tone and congestion.","active":true},
-  {"id":"diamond","name":"Diamond Microdermabrasion Facial","price":125,"duration":60,"category":"Enhancements","desc":"Deeper exfoliation than a regular facial. Diamond-tip microdermabrasion resurfaces skin texture and fades pigmentation.","active":true},
-  {"id":"dermaplaning","name":"Dermaplaning","price":75,"duration":30,"category":"Enhancements","desc":"A sterile blade gently removes dead skin cells and peach fuzz for instantly smooth, bright skin and better product absorption.","active":true},
-  {"id":"ihm","name":"Indian Head Massage (60 min)","price":95,"duration":60,"category":"Massage","desc":"Indian head massage combined with a face & neck treatment for complete upper-body relaxation.","active":true},
-  {"id":"wax","name":"Full Face Waxing","price":50,"duration":30,"category":"Waxing & Threading","desc":"Precision facial waxing using low-temperature stripless wax - gentle even on sensitive skin.","active":true},
-  {"id":"virt","name":"Virtual Skin Consultation","price":45,"duration":30,"category":"Consultation","desc":"One-on-one video skin analysis with Puja - personalised routine, product picks & treatment plan.","active":true}
- ],
- "settings": {
-  "seedVersion": 4,
-  "removedServiceIds": ["mdpeel", "purify"],
-  "quizMap": {"advanced":"hydra","anti-aging":"lymph","acne":"ultimate","calming":"rosacea","signature":"signature"}
- }
+﻿{
+  "services": [
+    {"id":"deep","name":"Deep Pore Cleansing","price":95,"duration":30,"category":"Express","desc":"Express deep pore cleansing with steam and extractions, 30 minutes.","active":true},
+    {"id":"teen","name":"Teen Facial","price":75,"duration":30,"category":"Express","desc":"A rapid-results teen facial: double cleanse under warm steam, gentle exfoliation, professional extractions, a cooling antibacterial mist and light oil-free hydration.","active":true},
+    {"id":"signature","name":"Customized Facial","price":85,"duration":60,"category":"Facials","desc":"Our iconic all-in-one custom facial tailored by Puja or Sia. Combines cleansing, exfoliation, targeted treatment, and a face massage.","active":true},
+    {"id":"gent","name":"Gentleman's Facial","price":95,"duration":60,"category":"Facials","desc":"A customized basic facial designed for men: deep pore cleanse and exfoliation, tough on congestion, gentle on texture.","active":true},
+    {"id":"brighten","name":"Brightening Galvanic Facial","price":95,"duration":60,"category":"Facials","desc":"Galvanic brightening facial to even tone, boost glow and support skin health. Very popular.","active":true,"popular":true},
+    {"id":"back","name":"Back Facial","price":95,"duration":60,"category":"Facials","desc":"A deep-cleansing facial for the back to clear congestion, exfoliate and leave skin smooth and refreshed.","active":true},
+    {"id":"hydra","name":"Hydra Facial","price":200,"duration":60,"category":"Advanced Facials","desc":"Deep hydration with gentle enzyme exfoliation, radio frequency, serum and a double mask.","active":true,"popular":true},
+    {"id":"nano","name":"Nano Needling Facial","price":200,"duration":60,"category":"Advanced Facials","desc":"An anti-aging facial that helps reduce acne, scars, pore size and fine lines.","active":true,"popular":true},
+    {"id":"lymph","name":"Gua Sha Massage Facial","price":130,"duration":60,"category":"Anti-Aging","desc":"Ayurvedic Gua Sha with targeted lymphatic drainage to de-puff, sculpt, relax and bring out a natural glow.","active":true,"popular":true},
+    {"id":"anti","name":"Anti-Aging Facial (75 Min)","price":145,"duration":75,"category":"Anti-Aging","desc":"Microdermabrasion plus a chemical peel to treat discoloration and pigmentation and soften fine lines.","active":true,"popular":true},
+    {"id":"ultimate","name":"Ultimate Facial (60 min)","price":95,"duration":60,"category":"Acne & Deep Clarity","desc":"Deep pore clearing facial combining extractions, lactic acid and enzyme exfoliation and a clarifying mask for congested skin.","active":true},
+    {"id":"clear","name":"Clear Facial","price":90,"duration":60,"category":"Acne & Deep Clarity","desc":"A targeted acne facial to calm breakouts, clear congestion and balance oil.","active":true},
+    {"id":"rosacea","name":"Rosacea Facial","price":120,"duration":60,"category":"Botanical Calming","desc":"Gentle barrier repair using chamomile, centella asiatica, and oat extracts. Designed for sensitive, reactive, or redness-prone skin.","active":true},
+    {"id":"corrective","name":"Corrective Facial w/ LED","price":120,"duration":60,"category":"Botanical Calming","desc":"LED light therapy facial to help correct redness, uneven tone and congestion.","active":true},
+    {"id":"dermaplane","name":"Dermaplaning Facial","price":125,"duration":60,"category":"Enhancements","desc":"Dermaplaning gently exfoliates, removing dead skin cells and peach fuzz for smooth, glowing skin. Very popular.","active":true,"popular":true},
+    {"id":"diamond","name":"Diamond Microdermabrasion Facial","price":125,"duration":60,"category":"Enhancements","desc":"Deeper exfoliation than a regular facial. Diamond-tip microdermabrasion resurfaces skin texture and fades pigmentation.","active":true},
+    {"id":"nuface","name":"Nuface Micro-Current Face Lift Upgrade","price":30,"duration":15,"category":"Enhancements","desc":"A 15-minute NuFACE micro-current upgrade to lift and tone. Add it to any facial.","active":true},
+    {"id":"enzyme","name":"Enzyme Peel Upgrade","price":20,"duration":10,"category":"Enhancements","desc":"A 10-minute enzyme peel upgrade for extra exfoliation and glow. Add it to any facial.","active":true},
+    {"id":"ledup","name":"LED Light Treatment Upgrade","price":20,"duration":15,"category":"Enhancements","desc":"A 15-minute LED light therapy upgrade. Add it to any facial.","active":true},
+    {"id":"chempeel","name":"Chemical Peel Upgrade","price":30,"duration":10,"category":"Enhancements","desc":"A 10-minute chemical peel upgrade for deeper exfoliation. Add it to any facial.","active":true},
+    {"id":"ihm","name":"Indian Head Massage (60 min)","price":95,"duration":60,"category":"Massage","desc":"Indian head massage combined with a face & neck treatment for complete upper-body relaxation.","active":true},
+    {"id":"ihm30","name":"Indian Head Massage (30 min)","price":55,"duration":30,"category":"Massage","desc":"Indian head massage combined with a face & neck treatment for complete upper-body relaxation, in a quick 30 minutes.","active":true},
+    {"id":"wax","name":"Full Waxing / Threading","price":15,"duration":15,"category":"Waxing & Threading","desc":"Precision facial and body waxing and threading. Gentle, even on sensitive skin.","active":true},
+    {"id":"wax-guasha","name":"Gua Sha Relaxation","price":130,"duration":60,"category":"Waxing & Threading","desc":"Ayurvedic Gua Sha with targeted lymphatic drainage to de-puff, sculpt, relax and bring out a natural glow. A deeply relaxing rose quartz ritual.","active":true},
+    {"id":"wax-clear","name":"Clear Facial","price":90,"duration":60,"category":"Waxing & Threading","desc":"A targeted acne facial to calm breakouts, clear congestion and balance oil for visibly clearer skin.","active":true},
+    {"id":"wax-led","name":"LED Light Therapy","price":120,"duration":60,"category":"Waxing & Threading","desc":"LED light therapy facial to help correct redness, uneven tone and congestion. Suitable for all skin types.","active":true},
+    {"id":"wax-derma","name":"Dermaplaning","price":125,"duration":60,"category":"Waxing & Threading","desc":"Dermaplaning gently exfoliates, removing dead skin cells and peach fuzz for instantly smooth, glowing skin.","active":true,"popular":true},
+    {"id":"wax-ihm","name":"Indian Head Massage","price":95,"duration":60,"category":"Waxing & Threading","desc":"Indian head massage combined with a face & neck treatment for complete upper-body relaxation. Traditional Ayurvedic technique.","active":true},
+    {"id":"virt","name":"Skin Consultation With Puja","price":45,"duration":30,"category":"Consultation","desc":"One-on-one video skin analysis with Puja - personalised routine, product picks & treatment plan.","active":true}
+  ],
+  "settings": {
+    "seedVersion": 7,
+    "removedServiceIds": ["mdpeel", "purify", "dermaplaning", "holistic", "express"],
+    "quizMap": {
+      "advanced": "hydra",
+      "anti-aging": "lymph",
+      "acne": "ultimate",
+      "calming": "rosacea",
+      "signature": "signature"
+    }
+  }
 }

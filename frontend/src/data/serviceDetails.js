@@ -7,20 +7,10 @@ export const SERVICE_DETAILS = {
     points: ["Supports lymphatic drainage & circulation", "Customised for dehydration, pigmentation, fine lines & blemishes", "Manual dermabrasion & exfoliation", "Tailored to your skin on the day"],
     art: ["#f6e7d2", "#dfc09a", "✨", "🌿", "💆"],
   },
-  holistic: {
-    long: "A full holistic facial ritual for a radiant, balanced glow. Your treatment is customised to your skin and to your stress level, so the session cares for how your skin looks and how you feel.",
-    points: ["Customised to skin & stress level", "Full facial ritual", "Radiant, balanced glow", "Deeply relaxing"],
-    art: ["#e8efd9", "#c3d3a0", "🌿", "🌸", "🧘"],
-  },
   gent: {
     long: "Our Gentleman's Facial is a customised treatment with deep pore cleansing and exfoliation. It can be tailored to the appearance of dehydration, hyperpigmentation, fine lines and blemishes caused by sun damage, sensitivity, dullness and aging, and includes manual dermabrasion and exfoliation.",
     points: ["Deep pore cleansing & exfoliation", "Manual dermabrasion", "Sun damage, dullness & aging concerns", "Customised for men's skin"],
     art: ["#dfe6ea", "#aebfca", "🧔", "🧼", "💧"],
-  },
-  express: {
-    long: "A targeted express facial that cleanses, exfoliates and hydrates. Perfect for a lunch-break refresh when you want fresher, brighter-looking skin in a short visit.",
-    points: ["Cleanse, exfoliate & hydrate", "Quick, lunch-break session", "Targeted to your skin", "Fresh, glowing finish"],
-    art: ["#e3f1e4", "#b4d8b8", "🌿", "⏱️", "💧"],
   },
   teen: {
     long: "This rapid-results treatment begins with a deep, purifying double cleanse under warm steam to open tight pores. Next, we apply a gentle exfoliating treatment to loosen debris, followed by precise, professional extractions to clear out stubborn blockages. We finish with a cooling, antibacterial mist and a lightweight, oil-free hydration barrier to protect and soothe the skin.",
@@ -28,19 +18,20 @@ export const SERVICE_DETAILS = {
     art: ["#e6f3ea", "#bde0c8", "🌱", "🫧", "😊"],
   },
   dermaplane: {
-    long: "Dermaplaning gently exfoliates and refines the skin. A sterile medical scalpel glides over the surface in light, feathering strokes, which is typically painless, and removes dead skin cells and peach fuzz. It lets skin breathe, helps skin-care products absorb deeper, and has no downtime. Paired with microdermabrasion for an extra-smooth finish.",
+    long: "Dermaplaning gently exfoliates and refines the skin. A sterile medical scalpel glides over the surface in light, feathering strokes, which is typically painless, and removes dead skin cells and peach fuzz. It lets skin breathe, helps skin-care products absorb deeper, and has no downtime.",
     points: ["Sterile medical scalpel, light strokes", "Removes dead cells & peach fuzz", "Helps products absorb deeper", "No downtime"],
-    art: ["#f4ecee", "#dcc6cc", "🪞", "✨", "🌸"],
-  },
-  dermaplaning: {
-    long: "Dermaplaning gently exfoliates and refines the skin. A sterile blade glides over the surface in light, feathering strokes, typically painless, removing dead skin cells and peach fuzz. It leaves skin instantly smooth and bright, helps skin-care products absorb deeper, and has no downtime. A perfect add-on to any facial.",
-    points: ["Sterile blade, light strokes", "Removes dead cells & peach fuzz", "Helps products absorb deeper", "No downtime"],
+    imgFit: "contain",
     art: ["#f4ecee", "#dcc6cc", "🪞", "✨", "🌸"],
   },
   brighten: {
     long: "A versatile treatment for rejuvenation and one of our best-selling facials. Galvanic and ultrasonic technology is beneficial for acne management, aging concerns, dry or dehydrated skin, hyperpigmentation, lines and wrinkles, rosacea, sensitive skin and overall skin health.",
     points: ["Our best-selling facial", "Galvanic / ultrasonic treatment", "Acne, aging & pigmentation concerns", "Beneficial for sensitive skin"],
     art: ["#fbf0c9", "#f0d27c", "🌟", "🍋", "✨"],
+  },
+  back: {
+    long: "A deep-cleansing facial for the back to clear congestion, exfoliate and leave skin smooth and refreshed.",
+    points: ["Deep pore cleansing", "Exfoliation", "Clears congestion", "Smooth & refreshed skin"],
+    art: ["#e3ede8", "#b0d0bb", "🌿", "🍃", "✨"],
   },
   hydra: {
     long: "An advanced treatment using a patented HydraDermabrasion device for deep exfoliation, cleansing, extraction and hydration. The 10-step system helps lift, boost collagen and brighten skin. Suitable for all skin tones, with no downtime.",
@@ -78,6 +69,7 @@ export const SERVICE_DETAILS = {
   clear: {
     long: "Say goodbye to problem skin and hello to a clearer complexion. Deep pore cleansing clarifies and balances the skin to reduce the signs of acne, and a high-frequency light treatment targets acne-causing bacteria.",
     points: ["Deep pore cleansing", "Clarifies & balances skin", "High-frequency light treatment", "Reduces the signs of acne"],
+    imgPos: "center top",
     art: ["#dff0dc", "#aed3a8", "🍃", "💧", "🌿"],
   },
   deep: {
@@ -100,14 +92,57 @@ export const SERVICE_DETAILS = {
     points: ["Diamond-tip microdermabrasion", "Sun-damaged & dehydrated skin", "Smooths fine lines & wrinkles", "Gentle approach"],
     art: ["#e3eef7", "#b2cde6", "💎", "✨", "🔹"],
   },
+  nuface: {
+    long: "A 15-minute NuFACE micro-current upgrade to lift and tone. Add it to any facial for a visible contouring boost.",
+    points: ["Micro-current technology", "Lifts & tones", "15-minute add-on", "Pairs with any facial"],
+    art: ["#eae6f5", "#c0b3e0", "⚡", "✨", "💆"],
+  },
+  enzyme: {
+    long: "A 10-minute enzyme peel upgrade for extra exfoliation and glow. Add it to any facial.",
+    points: ["Fruit enzyme peel", "Extra exfoliation", "Instant glow", "10-minute add-on"],
+    art: ["#e8f5e3", "#b8dba8", "🍃", "✨", "🌿"],
+  },
+  ledup: {
+    long: "A 15-minute LED light therapy upgrade. Add it to any facial for targeted skin correction.",
+    points: ["LED light therapy", "Reduces redness & congestion", "15-minute add-on", "Pairs with any facial"],
+    imgFit: "contain",
+    art: ["#e6dcf5", "#bda6e3", "💡", "🔴", "🔵"],
+  },
+  chempeel: {
+    long: "A 10-minute chemical peel upgrade for deeper exfoliation and resurfacing. Add it to any facial.",
+    points: ["Chemical peel", "Deeper exfoliation", "10-minute add-on", "Pairs with any facial"],
+    art: ["#f3e3d0", "#dbb98f", "🧴", "✨", "🌿"],
+  },
   ihm: {
     long: "Indian head massage is an ancient Ayurvedic therapeutic treatment that has been practised in India for thousands of years. The focus is on the scalp, face, neck and shoulders.",
     points: ["Ancient Ayurvedic therapy", "Scalp, face, neck & shoulders", "Deeply relaxing", "Melts away tension"],
+    imgFit: "contain",
+    art: ["#f2e1c9", "#d9b27a", "🙏", "💆", "🪔"],
+  },
+  ihm30: {
+    long: "Indian head massage is an ancient Ayurvedic therapeutic treatment that has been practised in India for thousands of years. The focus is on the scalp, face, neck and shoulders. This is our quick 30-minute version.",
+    points: ["Ancient Ayurvedic therapy", "Scalp, face, neck & shoulders", "Deeply relaxing", "Melts away tension"],
+    imgFit: "contain",
     art: ["#f2e1c9", "#d9b27a", "🙏", "💆", "🪔"],
   },
   wax: {
-    long: "Precision facial waxing using low-temperature stripless wax. Gentle, even on sensitive skin, for a smooth and long-lasting finish.",
-    points: ["Low-temperature stripless wax", "Precise facial waxing", "Gentle on sensitive skin", "Smooth, long-lasting finish"],
+    long: "Precision facial and body waxing and threading by our licensed estheticians. We use low-temperature stripless wax, gentle even on sensitive skin, for a smooth and long-lasting finish.",
+    pointsTitle: "Services",
+    points: [
+      "Eyebrow Waxing · 15 min · $15",
+      "Eyebrow Threading · 15 min · $15",
+      "Eyebrow Tint · 20 min · $20",
+      "Upper Lip · 15 min · $15",
+      "Chin Wax · 15 min · $15",
+      "Ear or Nose Wax · 15 min · $15",
+      "Full Face Wax · 30 min · $50",
+      "Underarm Wax · 15 min · $25",
+      "Full Arms Wax · 45 min · $35",
+      "Back Wax · 45 min · $50",
+      "Bikini Wax · 45 min · $35",
+      "Full Legs Wax · 45 min · $65",
+    ],
+    imgPos: "center 40%",
     art: ["#f7e6ee", "#e8b9cf", "🌸", "🍯", "✨"],
   },
   virt: {
