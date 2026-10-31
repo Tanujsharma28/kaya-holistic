@@ -18,7 +18,9 @@ export const dbFile = file;
 // Pehli baar chalne par services aur quiz settings seed.json se aati hain
 let seed = {};
 try {
-  seed = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'seed.json'), 'utf8'));
+  seed = JSON.parse(
+    fs.readFileSync(path.join(__dirname, '..', 'data', 'seed.json'), 'utf8').replace(/^\uFEFF/, '')
+  );
 } catch (e) { console.error('❌ seed.json load nahi hui:', e.message); }
 
 const defaultQuizMap = seed.settings?.quizMap || {};
