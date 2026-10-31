@@ -19,7 +19,7 @@ export const dbFile = file;
 let seed = {};
 try {
   seed = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'seed.json'), 'utf8'));
-} catch { /* seed optional */ }
+} catch (e) { console.error('❌ seed.json load nahi hui:', e.message); }
 
 const defaultQuizMap = seed.settings?.quizMap || {};
 const defaultData = {
@@ -52,11 +52,13 @@ db.data.trash ||= [];
 db.data.auditLog ||= [];
 
 const SEED_VERSION = seed.settings?.seedVersion || 1;
-if ((db.data.settings.seedVersion || 1) < SEED_VERSION) {
+const storedVersion = db.data.settings.seedVersion || 1;
+console.log(`🌱 Seed check: file v${SEED_VERSION}, DB v${storedVersion}, seed services: ${(seed.services || []).length}, DB services: ${db.data.services.length}`);
+if (storedVersion < SEED_VERSION) {
   for (const s of seed.services || []) {
     const cur = db.data.services.find((x) => x.id === s.id);
     if (!cur) db.data.services.push({ ...s });
-    else if (cur.userEdited) continue; 
+    else if (cur.userEdited) continue;
     else Object.assign(cur, { name: s.name, price: s.price, duration: s.duration, category: s.category, desc: s.desc, popular: !!s.popular });
   }
   // Menu se hataye gaye services purani DB se bhi nikaalo
@@ -64,6 +66,9 @@ if ((db.data.settings.seedVersion || 1) < SEED_VERSION) {
   if (removed.length) db.data.services = db.data.services.filter((x) => !removed.includes(x.id));
   db.data.settings.quizMap = { ...defaultQuizMap };
   db.data.settings.seedVersion = SEED_VERSION;
+  console.log(`🌱 Seed applied: now v${SEED_VERSION}, DB services: ${db.data.services.length}`);
+} else {
+  console.log('🌱 Seed skipped: DB version already >= file version');
 }
 await db.write();
 if (!useMongo) console.log(`🗄️  Database file: ${file}`);
