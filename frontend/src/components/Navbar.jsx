@@ -107,20 +107,29 @@ export default function Navbar() {
 
         /* Logo image — FULL image (lotus + "Kaya Holistic Spa" text) */
         .brand-logo-img {
-          width: 90%;
-          height: 90%;
+          width: 92%;
+          height: 92%;
           object-fit: contain;
           object-position: center center;
           display: block;
-          filter: drop-shadow(0 0 3px rgba(212,175,55,0.3));
+          /* Brightness boost so golden details pop inside dark circle */
+          filter:
+            brightness(1.25)
+            contrast(1.1)
+            drop-shadow(0 0 5px rgba(212,175,55,0.55))
+            drop-shadow(0 0 10px rgba(180,130,10,0.3));
           transition: filter 0.3s ease, transform 0.35s ease;
           position: relative;
           z-index: 1;
         }
 
         .nav-brand:hover .brand-logo-img {
-          filter: drop-shadow(0 0 7px rgba(255,215,60,0.7)) brightness(1.08);
-          transform: scale(1.06) rotate(-18deg); /* counter-rotate so logo stays upright */
+          filter:
+            brightness(1.4)
+            contrast(1.15)
+            drop-shadow(0 0 10px rgba(255,215,60,0.85))
+            drop-shadow(0 0 20px rgba(212,175,55,0.5));
+          transform: scale(1.06) rotate(-18deg);
         }
 
         /* Scrolled → slightly smaller */
@@ -137,27 +146,34 @@ export default function Navbar() {
         }
         .brand-title {
           font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 1.18rem;
+          font-size: 1.22rem;
           font-weight: 700;
-          color: #1C2B22;
           line-height: 1.15;
-          letter-spacing: 0.015em;
-          transition: color 0.2s;
+          letter-spacing: 0.02em;
+          /* Gold gradient text */
+          background: linear-gradient(135deg, #8a6820 0%, #c9a227 40%, #e8c84a 60%, #a07820 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          transition: filter 0.2s;
         }
-        .nav-brand:hover .brand-title { color: #7c5c38; }
+        .nav-brand:hover .brand-title {
+          filter: brightness(1.15);
+        }
         .brand-subtitle {
           font-size: 0.6rem;
-          color: #a08060;
-          letter-spacing: 0.15em;
+          color: #b8926a;
+          letter-spacing: 0.16em;
           text-transform: uppercase;
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          margin-top: 1px;
         }
         .brand-tagline {
           font-family: 'Cormorant Garamond', Georgia, serif;
           font-style: italic;
-          font-size: 0.7rem;
-          color: #9a7850;
-          letter-spacing: 0.02em;
+          font-size: 0.71rem;
+          color: #b89060;
+          letter-spacing: 0.025em;
         }
 
         /* ─── Nav Links ─── */
