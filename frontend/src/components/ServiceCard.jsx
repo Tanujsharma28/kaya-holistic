@@ -18,10 +18,10 @@ const SERVICE_IMG = {
   hydra:      IMG("1559757175-0eb30cd8c063"),
   // Diamond microdermabrasion – resurfacing device on skin
   diamond:    IMG("1522337360788-8b13dee7a37e"),
-  // Nano-needling serum infusion – micro-needling device
-  nano:       IMG("1612349317150-e413f6a5b16d"),
-  // Men's facial – man on treatment bed, clean skin
-  gent:       IMG("1621607512214-68297480165e"),
+  // Nano-needling serum infusion – local uploaded image
+  nano:       null,
+  // Men's facial – local uploaded image
+  gent:       null,
   // Indian head massage – local uploaded image
   ihm:        null,
   ihm30:      null,
@@ -37,8 +37,8 @@ const SERVICE_IMG = {
   rosacea:      IMG("1512290923902-8a9f81dc236c"),
   // LED corrective therapy – LED light panel on face
   corrective:   IMG("1487412720507-e7ab37603c6f"),
-  // Teen gentle facial – young skin care
-  teen:         IMG("1508214751196-bcfd4ca60f91"),
+  // Teen gentle facial – young adult gentle skincare treatment (local /services/teen.jpg)
+  teen:         null,
   // Dermaplaning – blade gliding for smooth glow
   dermaplane:   IMG("1556228852-80b6678ced23"),
   // Brightening facial – radiant lit-from-within skin

@@ -10,6 +10,7 @@ export const SERVICE_DETAILS = {
   gent: {
     long: "Our Gentleman's Facial is a customised treatment with deep pore cleansing and exfoliation. It can be tailored to the appearance of dehydration, hyperpigmentation, fine lines and blemishes caused by sun damage, sensitivity, dullness and aging, and includes manual dermabrasion and exfoliation.",
     points: ["Deep pore cleansing & exfoliation", "Manual dermabrasion", "Sun damage, dullness & aging concerns", "Customised for men's skin"],
+    imgPos: "center center",
     art: ["#dfe6ea", "#aebfca", "🧔", "🧼", "💧"],
   },
   teen: {
@@ -31,6 +32,7 @@ export const SERVICE_DETAILS = {
   back: {
     long: "A deep-cleansing facial for the back to clear congestion, exfoliate and leave skin smooth and refreshed.",
     points: ["Deep pore cleansing", "Exfoliation", "Clears congestion", "Smooth & refreshed skin"],
+    imgPos: "center 30%",
     art: ["#e3ede8", "#b0d0bb", "🌿", "🍃", "✨"],
   },
   hydra: {
@@ -80,6 +82,7 @@ export const SERVICE_DETAILS = {
   rosacea: {
     long: "A soothing facial designed to calm sensitive skin and reduce the look of redness and inflammation. Gentle cleansing, hydrating masks and targeted serums with nourishing ingredients restore balance and leave a calm, refreshed complexion.",
     points: ["Calms sensitive, rosacea-prone skin", "Gentle cleansing", "Hydrating masks & targeted serums", "Reduces the look of redness"],
+    imgPos: "center center",
     art: ["#f7e3e0", "#e6b9b1", "🌼", "🌿", "🤍"],
   },
   corrective: {
