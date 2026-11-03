@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -142,6 +142,47 @@ const SERVICE_META = {
   },
 };
 
+
+// Photo service ke NAAM se dhoondhta hai (public/services/ me). Ye sab naam chalte hain, e.g.
+//   BrighteningGalvanicFacial.jpg, customizedfacial.png, Dermaplaning Facial.jpg, skinconsultation.jpg
+// Na mile to service id (signature.jpg) par fallback. Jo pehle mile wahi lagta hai.
+const PHOTO_EXTS = ["jpg", "jpeg", "png", "webp"];
+// Jahan tumhari filename service ke naam se alag hai, wahan yahan likh do (extension ke bina)
+const PHOTO_EXTRA = {
+  corrective: ["correctivefacialwithledlight", "correctivefacialwithled", "correctivefacial"],
+  virt: ["skinconsultation", "skinconsultationwithpuja", "skinconsult"],
+  signature: ["customizedfacial", "customisedfacial"],
+  dermaplane: ["DermaplaningFacial", "dermaplaningfacial", "dermaplaning"],
+  brighten: ["BrighteningGalvanicFacial", "brighteninggalvanicfacial"],
+  ultimate: ["UltimateFacial", "ultimatefacial"],
+};
+function photoCandidates(service) {
+  const base = String(service.name || "")
+    .replace(/\(.*?\)/g, "")           // "(60 min)" hata do
+    .replace(/w\s*\/\s*/gi, "with ")    // "w/ LED" -> "with LED"
+    .replace(/[\/\\']/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const words = base.split(" ").filter(Boolean);
+  const names = new Set(PHOTO_EXTRA[service.id] || []);
+  // poora naam + chhote-chhote hisse ("Skin Consultation With Puja" -> "SkinConsultation", ...)
+  for (let n = words.length; n >= 1; n--) {
+    const part = words.slice(0, n);
+    if (n < 2 && words.length > 1) continue;
+    const joined = part.join("");
+    names.add(joined);                       // BrighteningGalvanicFacial
+    names.add(joined.toLowerCase());         // brighteninggalvanicfacial
+    names.add(part.join(" "));               // Brightening Galvanic Facial
+    names.add(part.join(" ").toLowerCase());
+    names.add(part.join("-").toLowerCase()); // brightening-galvanic-facial
+    names.add(part.join("_").toLowerCase());
+  }
+  const out = [];
+  names.forEach((nm) => PHOTO_EXTS.forEach((e) => out.push(`/services/${encodeURIComponent(nm)}.${e}`)));
+  PHOTO_EXTS.forEach((e) => out.push(`/services/${service.id}.${e}`));
+  return out;
+}
+
 const DEFAULT_META = { icon: "🌸", tagline: "Personalised treatment", desc: "A bespoke spa experience tailored to your unique skin needs.", tag: null };
 
 export default function ServiceCard({ service }) {
@@ -158,7 +199,11 @@ export default function ServiceCard({ service }) {
   const isWax = service.id === "wax";
   const durLabel = isWax ? "15–45 min" : `${service.duration} min`;
   const pricePre = isWax ? "From " : "";
-  const [imgOk, setImgOk] = useState(true);           // /services/<id>.jpg na mile to art panel
+  const photos = useMemo(() => photoCandidates(service), [service.id, service.name]);
+  const [imgIdx, setImgIdx] = useState(0);                // agli photo try karo; sab fail to art panel
+  const imgOk = imgIdx < photos.length;
+  const photoSrc = photos[imgIdx];
+  const setImgOk = () => setImgIdx((i) => i + 1);
   const [c1, c2, e1, e2, e3] = det?.art || ["#f3e6d3", "#d9bb93", meta.icon, "🌿", "✨"];
 
   // Modal ke "Key benefits": admin ne service.highlights diya ho to wo, warna details, warna service ke data se
@@ -218,9 +263,9 @@ export default function ServiceCard({ service }) {
                 {imgOk ? (
                  det?.imgFit === "contain" ? (
   <>
-    <img src={`/services/${service.id}.jpg`} alt="" aria-hidden="true" className="svc-img-blur" />
+    <img src={photoSrc} alt="" aria-hidden="true" className="svc-img-blur" />
     <img
-      src={`/services/${service.id}.jpg`}
+      src={photoSrc}
       alt={service.name}
       className="svc-img-full"
       onError={() => setImgOk(false)}
@@ -228,7 +273,7 @@ export default function ServiceCard({ service }) {
   </>
 ) : (
   <img
-    src={`/services/${service.id}.jpg`}
+    src={photoSrc}
     alt={service.name}
     style={{ objectPosition: det?.imgPos || "center" }}
     onError={() => setImgOk(false)}

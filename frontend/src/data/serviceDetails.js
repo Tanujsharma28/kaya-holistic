@@ -1,8 +1,9 @@
 // Har service ka poora description, key points aur photo ka fallback art.
-// Photo: frontend/public/services/<id>.jpg  (naam = service id). Photo na ho to art panel dikhta hai.
+// Photo: frontend/public/services/<Service Name>.jpg (ya <id>.jpg). imgPos = photo ka focus point. Photo na ho to art panel dikhta hai.
 // art: [rang1, rang2, emoji1, emoji2, emoji3]
 export const SERVICE_DETAILS = {
   signature: {
+    imgPos: "center 35%",
     long: "Our signature customised facial helps stimulate lymphatic drainage and improve circulation for visibly better-looking skin. Your treatment is tailored to the appearance of dehydration, hyperpigmentation, fine lines and blemishes, and includes manual dermabrasion and exfoliation.",
     points: ["Supports lymphatic drainage & circulation", "Customised for dehydration, pigmentation, fine lines & blemishes", "Manual dermabrasion & exfoliation", "Tailored to your skin on the day"],
     art: ["#f6e7d2", "#dfc09a", "✨", "🌿", "💆"],
@@ -19,12 +20,13 @@ export const SERVICE_DETAILS = {
     art: ["#e6f3ea", "#bde0c8", "🌱", "🫧", "😊"],
   },
   dermaplane: {
+    imgPos: "center 30%",
     long: "Dermaplaning gently exfoliates and refines the skin. A sterile medical scalpel glides over the surface in light, feathering strokes, which is typically painless, and removes dead skin cells and peach fuzz. It lets skin breathe, helps skin-care products absorb deeper, and has no downtime.",
     points: ["Sterile medical scalpel, light strokes", "Removes dead cells & peach fuzz", "Helps products absorb deeper", "No downtime"],
-    imgFit: "contain",
     art: ["#f4ecee", "#dcc6cc", "🪞", "✨", "🌸"],
   },
   brighten: {
+    imgPos: "center 30%",
     long: "A versatile treatment for rejuvenation and one of our best-selling facials. Galvanic and ultrasonic technology is beneficial for acne management, aging concerns, dry or dehydrated skin, hyperpigmentation, lines and wrinkles, rosacea, sensitive skin and overall skin health.",
     points: ["Our best-selling facial", "Galvanic / ultrasonic treatment", "Acne, aging & pigmentation concerns", "Beneficial for sensitive skin"],
     art: ["#fbf0c9", "#f0d27c", "🌟", "🍋", "✨"],
@@ -64,6 +66,7 @@ export const SERVICE_DETAILS = {
     art: ["#f3e3d0", "#dbb98f", "⏳", "✨", "🧴"],
   },
   ultimate: {
+    imgPos: "center 35%",
     long: "A relaxing enzyme facial that uses fruit enzymes to exfoliate and support the skin's natural turnover, with vitamin A and beta-carotene. Lactic acid helps improve tone and texture while gentle enzymes lift the superficial layers for a healthy glow.",
     points: ["Fruit enzyme exfoliation", "Vitamin A & beta-carotene", "Lactic acid for tone & texture", "Healthy glow"],
     art: ["#dcebe6", "#a9cfc3", "🔍", "🫧", "💚"],
@@ -86,6 +89,7 @@ export const SERVICE_DETAILS = {
     art: ["#f7e3e0", "#e6b9b1", "🌼", "🌿", "🤍"],
   },
   corrective: {
+    imgPos: "62% 50%",
     long: "Designed to wash away impurities, smooth and refine skin texture and support the growth of newer, younger cells. LED light is great for softening the look of fine lines and wrinkles, improving uneven tone, reducing pore size and brightening the skin.",
     points: ["Cleanses & refines texture", "LED light therapy", "Fine lines & uneven tone", "Pore size & brightness"],
     art: ["#e6dcf5", "#bda6e3", "💡", "🔴", "🔵"],
@@ -149,6 +153,7 @@ export const SERVICE_DETAILS = {
     art: ["#f7e6ee", "#e8b9cf", "🌸", "🍯", "✨"],
   },
   virt: {
+    imgPos: "center 30%",
     long: "A one-on-one video skin analysis with Puja over Google Meet. You leave with a personalised routine, product picks and a treatment plan.",
     points: ["Live 1-on-1 video call", "Personalised skin routine", "Product recommendations", "Treatment plan"],
     art: ["#e0e8f5", "#aebfe3", "🖥️", "💬", "🌿"],
