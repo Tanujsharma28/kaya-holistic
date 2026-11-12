@@ -317,7 +317,7 @@ const Booking = () => {
           <div className="trust-pills">
             <span className="trust-pill">⭐ 5.0 Rated Evanston Spa</span>
             <span className="trust-pill">🔒 Real-Time Slot Guarantee</span>
-            <span className="trust-pill">↩️ Reschedule 24h Prior</span>
+            <span className="trust-pill">↩️ Cancel/Reschedule 24h Prior</span>
             <span className="trust-pill">📍 1567 Sherman Ave, Evanston</span>
           </div>
         </div>
@@ -384,9 +384,9 @@ const Booking = () => {
           <div className="info-card">
             <div className="info-icon">✨</div>
             <h4>Booking & Cancellation Policy</h4>
-            <p>
-              Your appointment holds time exclusively for you. Please notify us at least 24 hours in advance if you need to reschedule or cancel.
-            </p>
+<p>
+  A major credit card is required to confirm your reservation. A minimum of 24 hours' notice is required to cancel or reschedule to avoid extra charges.
+</p>
           </div>
         </div>
       </div>
