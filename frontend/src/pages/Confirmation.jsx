@@ -177,7 +177,7 @@ export default function Confirmation() {
             {!isOnline && <li>Please arrive 5 minutes early with a clean, makeup-free face.</li>}
             {!isOnline && <li>Let us know about any allergies or sensitivities.</li>}
             {isOnline && <li>Join with the Google Meet link in your email at your appointment time. You will get a reminder 30 minutes before.</li>}
-            <li>Need to reschedule? Please call us at least 24 hours ahead: <a href="tel:8475711910">847-571-1910</a>.</li>
+            <li>A minimum of 24 hours' notice is required to cancel or reschedule to avoid extra charges. Please call us: <a href="tel:8475711910">847-571-1910</a>.</li>
           </ul>
           {!isOnline && (
             <a className="cf-link" target="_blank" rel="noreferrer"
