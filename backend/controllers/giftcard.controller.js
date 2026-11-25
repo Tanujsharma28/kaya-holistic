@@ -6,6 +6,7 @@ import { syncSquareOrder } from './payment.controller.js';
 import { sendMail, notifyOwner } from '../utils/mailer.js';
 import { giftBuyerEmail, giftRecipientEmail, giftOwnerEmail } from '../utils/giftEmails.js';
 import { lookupGift } from '../utils/giftRedeem.js';
+import { clientUrl } from '../utils/clientUrl.js';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PAYMENTS_PAUSED = () => process.env.PAYMENTS_PAUSED === 'true';
 
@@ -29,6 +30,31 @@ const publicView = (g) => ({
   code: g.status === 'paid' || g.status === 'redeemed' ? g.code : '',
   createdAt: g.createdAt, expiresAt: g.expiresAt,
 });
+
+// Gift ke emails bhejna. sendMail/notifyOwner fail hone par throw nahi karte (null dete hain),
+// isliye yahan har email ka result gift par save karte hain taaki retry ho sake.
+export async function sendGiftEmails(gift) {
+  const sent = gift.emailsSent ||= { buyer: false, recipient: false, owner: false };
+  const sendRecipient = gift.recipientEmail && gift.recipientEmail.toLowerCase() !== gift.buyerEmail.toLowerCase();
+  if (!sendRecipient) sent.recipient = true; // bhejna hi nahi hai
+
+  gift.emailAttempts = (gift.emailAttempts || 0) + 1;
+  gift.lastEmailAttemptAt = new Date().toISOString();
+
+  const jobs = [];
+  if (!sent.buyer) jobs.push(['buyer', () => sendMail({ to: gift.buyerEmail, ...giftBuyerEmail(gift) })]);
+  if (!sent.owner) jobs.push(['owner', () => notifyOwner(giftOwnerEmail(gift))]);
+  if (!sent.recipient) jobs.push(['recipient', () => sendMail({ to: gift.recipientEmail, ...giftRecipientEmail(gift) })]);
+
+  const results = await Promise.allSettled(jobs.map(([, fn]) => fn()));
+  results.forEach((r, i) => {
+    const who = jobs[i][0];
+    if (r.status === 'fulfilled' && r.value) sent[who] = true;
+    else console.error(`❌ Gift email (${who}) not sent for gift ${gift.id}:`, r.reason?.message || 'mailer returned null, upar ka error log dekho');
+  });
+  await db.write();
+  return sent.buyer && sent.owner && sent.recipient;
+}
 
 // 1) Square payment link
 export const createGiftCheckout = async (req, res) => {
@@ -77,14 +103,7 @@ export const createGiftCheckout = async (req, res) => {
     gift.paymentSkipped = true; // admin ko pata rahe ki is gift card ka payment nahi liya gaya (test)
     await db.write();
 
-    const sendRecipient = gift.recipientEmail && gift.recipientEmail.toLowerCase() !== gift.buyerEmail.toLowerCase();
-    const jobs = [
-      sendMail({ to: gift.buyerEmail, ...giftBuyerEmail(gift) }),
-      notifyOwner(giftOwnerEmail(gift)),
-    ];
-    if (sendRecipient) jobs.push(sendMail({ to: gift.recipientEmail, ...giftRecipientEmail(gift) }));
-    const results = await Promise.allSettled(jobs);
-    results.forEach((r) => r.status === 'rejected' && console.error('Gift email error:', r.reason?.message));
+    await sendGiftEmails(gift);
 
     return res.status(201).json({ success: true, data: { paused: true, gift: publicView(gift) } });
   }
@@ -97,7 +116,7 @@ export const createGiftCheckout = async (req, res) => {
       referenceId: gift.id,
       kind: 'gift',
       // Frontend ka purana "session_id" param hi use ho raha hai, usme ab gift card id hai
-      redirectUrl: `${process.env.CLIENT_URL}/gift-confirmation?session_id=${gift.id}`,
+      redirectUrl: `${clientUrl()}/gift-confirmation?session_id=${gift.id}`,
       buyerEmail,
     });
     gift.squareOrderId = link.orderId;
@@ -146,14 +165,7 @@ export async function handleGiftPaid(gift, payment) {
   gift.squarePaymentId = payment?.id || '';
   await db.write();
 
-  const sendRecipient = gift.recipientEmail && gift.recipientEmail.toLowerCase() !== gift.buyerEmail.toLowerCase();
-  const jobs = [
-    sendMail({ to: gift.buyerEmail, ...giftBuyerEmail(gift) }),
-    notifyOwner(giftOwnerEmail(gift)),
-  ];
-  if (sendRecipient) jobs.push(sendMail({ to: gift.recipientEmail, ...giftRecipientEmail(gift) }));
-  const results = await Promise.allSettled(jobs);
-  results.forEach((r) => r.status === 'rejected' && console.error('Gift email error:', r.reason?.message));
+  await sendGiftEmails(gift);
 }
 
 // ── Admin ──
