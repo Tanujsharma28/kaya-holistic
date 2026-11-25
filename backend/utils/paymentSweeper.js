@@ -2,6 +2,7 @@ import { db } from '../config/db.js';
 import { squareConfigured, deletePaymentLink } from './square.js';
 import { releaseGift } from './giftRedeem.js';
 import { syncSquareOrder } from '../controllers/payment.controller.js';
+import { sendGiftEmails } from '../controllers/giftcard.controller.js';
 
 // Square payment link ki khud ki expiry nahi hoti (Stripe me thi). Isliye har 5 min me
 // purane 'pending-payment' records dekhte hain: link band karke slot chhod dete hain.
@@ -38,6 +39,22 @@ export async function sweepPendingPayments() {
   for (const g of stale(db.data.giftCards)) await sweepOne(g, 'gift');
 }
 
+// Paid gift cards jinke email fail ho gaye the, unhe dobara bhejo (max 6 koshish)
+export async function retryGiftEmails() {
+  const now = Date.now();
+  for (const g of db.data.giftCards || []) {
+    if (g.status !== 'paid' && g.status !== 'redeemed') continue;
+    if (g.paymentSkipped) continue;
+    const s = g.emailsSent;
+    if (s && s.buyer && s.owner && s.recipient) continue;
+    if ((g.emailAttempts || 0) >= 6) continue;
+    if (g.lastEmailAttemptAt && now - new Date(g.lastEmailAttemptAt).getTime() < 4 * 60 * 1000) continue;
+    console.log('🔁 Retrying gift emails for', g.id);
+    await sendGiftEmails(g);
+  }
+}
+
 export function initPaymentSweeper() {
+  setInterval(() => retryGiftEmails().catch((e) => console.error('Gift email retry error:', e.message)), 5 * 60 * 1000);
   setInterval(() => sweepPendingPayments().catch((e) => console.error('Sweeper error:', e.message)), 5 * 60 * 1000);
 }
